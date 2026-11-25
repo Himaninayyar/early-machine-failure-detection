@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge with context %}
+{% block title %}About{% endblock %}
+{% block content %}
+{{ page_header("About the project", "Early Machine Failure Detection Using Machine Learning: predictive maintenance through sensor data.") }}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="panel-head"><h2>What this application does</h2></div>
+      <div class="panel-body">
+        <p>Maintenance is usually reactive (repair after a breakdown) or scheduled at fixed intervals regardless of machine condition. This project looks at a machine's current sensor readings and estimates the probability that it is in a failing state, so maintenance can be planned before a breakdown.</p>
+        <p>Readings are entered by hand or uploaded as a CSV. This is not live monitoring: nothing is read from machines automatically.</p>
+        <ol class="mb-0">
+          <li><strong>Analyze</strong> a machine: readings go through the trained pipeline (feature engineering, scaling, model, probability calibration).</li>
+          <li>The failure probability becomes a <strong>status</strong> (Normal, Warning or Critical), a <strong>health score</strong> and a <strong>recommended action</strong>.</li>
+          <li>Warning and Critical results open <strong>one alert per machine</strong>. Later readings update it; a Normal reading resolves it. Everything is kept in the <strong>history</strong>.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Risk levels and health score</h2></div>
+      <div class="panel-body flush">
+        <table class="table-app">
+          <thead><tr><th>Status</th><th>Failure probability</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>{{ badge('Normal') }}</td><td>0% to under 30%</td><td>Continue operation</td></tr>
+            <tr><td>{{ badge('Warning') }}</td><td>30% to under 70%</td><td>Schedule inspection</td></tr>
+            <tr><td>{{ badge('Critical') }}</td><td>70% to 100%</td><td>Immediate maintenance</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body small-note">{{ health_formula }} {{ health_note }}</div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel">
+      <div class="panel-head"><h2>Dataset</h2><span class="hint">AI4I 2020 Predictive Maintenance</span></div>
+      <div class="panel-body">
+        {% if eda %}
+        <dl class="meta">
+          <dt>Records</dt><dd>{{ '{:,}'.format(eda.rows) }}</dd>
+          <dt>Failures</dt><dd>{{ eda.failures }} ({{ eda.failure_rate_pct }}%)</dd>
+          <dt>Missing values</dt><dd>{{ eda.missing_values }}</dd>
+          <dt>Duplicate rows</dt><dd>{{ eda.duplicate_rows }}</dd>
+          <dt>Inputs</dt><dd>Type, air and process temperature, rotational speed, torque, tool wear</dd>
+          <dt>Target</dt><dd>Machine failure (yes / no)</dd>
+        </dl>
+        <table class="table-app mt-3">
+          <thead><tr><th>Type</th><th class="r">Records</th><th class="r">Failures</th><th class="r">Failure rate</th></tr></thead>
+          <tbody>{% for t, s in eda.type_stats.items() %}<tr><td>{{ t }}</td><td class="r">{{ '{:,}'.format(s.count) }}</td><td class="r">{{ s.failures }}</td><td class="r">{{ s.failure_rate_pct }}%</td></tr>{% endfor %}</tbody>
+        </table>
+        {% else %}<p class="muted mb-0">Run <code>python -m ml.eda</code> to generate the dataset summary.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if eda %}
+<h2 class="section-title">What the data shows</h2>
+<p class="muted">Failure rate by reading range. The dashed line is the overall rate ({{ eda.failure_rate_pct }}%). Failures are not simply "higher is worse": they rise at both ends of speed, torque and power, which is why a linear model struggles and tree-based models do well.</p>
+<div class="row g-3">
+  {% for id, title in [('wear', 'Tool wear (min)'), ('rpm', 'Rotational speed (rpm)'), ('torque', 'Torque (Nm)'), ('power', 'Approximate power (W)')] %}
+  <div class="col-md-6"><div class="panel h-100"><div class="panel-head"><h2>{{ title }}</h2></div>
+    <div class="panel-body"><div class="chart-box"><canvas id="chart-eda-{{ id }}" role="img" aria-label="Failure rate by {{ title }}"></canvas></div></div></div></div>
+  {% endfor %}
+</div>
+
+<h2 class="section-title">Failure modes in the dataset</h2>
+<div class="panel"><div class="panel-body flush table-wrap">
+  {% set rc = eda.rule_checks %}
+  <table class="table-app">
+    <thead><tr><th>Mode</th><th class="r">Records</th><th>What the data shows</th></tr></thead>
+    <tbody>
+      <tr><td>HDF - heat dissipation</td><td class="r">{{ eda.mode_counts.HDF }}</td><td class="wrap">Always occurs when the temperature difference is below 8.6 K and speed below 1380 rpm ({{ rc.HDF.mismatches }} exceptions).</td></tr>
+      <tr><td>PWF - power</td><td class="r">{{ eda.mode_counts.PWF }}</td><td class="wrap">Always occurs when power is below 3,500 W or above 9,000 W ({{ rc.PWF.mismatches }} exceptions).</td></tr>
+      <tr><td>OSF - overstrain</td><td class="r">{{ eda.mode_counts.OSF }}</td><td class="wrap">Always occurs when tool wear x torque exceeds 11,000 / 12,000 / 13,000 for types L / M / H ({{ rc.OSF.mismatches }} exceptions).</td></tr>
+      <tr><td>TWF - tool wear</td><td class="r">{{ eda.mode_counts.TWF }}</td><td class="wrap">Occurs only at {{ rc.TWF.wear_min }}-{{ rc.TWF.wear_max }} min of wear, but only some machines in that range fail ({{ eda.tool_wear_rates.ge_200_pct }}% at 200 min or more, {{ eda.tool_wear_rates.lt_200_pct }}% below).</td></tr>
+      <tr><td>RNF - random</td><td class="r">{{ eda.mode_counts.RNF }}</td><td class="wrap">Random by design: only {{ rc.RNF.of_which_machine_failure }} of {{ rc.RNF.flagged }} flagged records is labelled a machine failure. It cannot be predicted from sensor data.</td></tr>
+    </tbody>
+  </table>
+</div></div>
+{% endif %}
+
+<h2 class="section-title">Limitations</h2>
+<div class="panel"><div class="panel-body">
+  <ul class="mb-0">
+    <li>The AI4I 2020 dataset is synthetic and its failure modes follow fixed rules. Scores here are likely much higher than real machines would give, and nothing here has been validated on external or real industrial data.</li>
+    <li>Records are independent snapshots with no time order. The system judges whether current readings look like a failing state. The failure probability is <strong>not</strong> remaining useful life or time to failure.</li>
+    <li>Inputs are entered manually or uploaded. This is not live or real-time monitoring.</li>
+    <li>The test set has only {{ m.dataset.test_failures if m else 68 }} failures, so differences between close models are not statistically meaningful.</li>
+    <li>The overall model estimates failure risk, not failure type. The failure-mode table combines separate per-mode classifiers (only where reliable) with rule checks, and both are suggestions to investigate, not diagnoses. Random failures (RNF) cannot be identified.</li>
+    <li>The health score is a re-expression of the probability. It is not an independently validated measure of machine health.</li>
+    <li>"What-if" analysis shows how the model responds to a changed reading. It does not establish cause and effect.</li>
+    <li>Readings that combine values the training data never contained (for example high speed with high torque) may be predicted unreliably even when each value is in range.</li>
+  </ul>
+</div></div>
+
+<h2 class="section-title">Project team</h2>
+<p>Himani Nayyar (1024030510) and Jiya Gupta (1024030501). Data: AI4I 2020 Predictive Maintenance Dataset (UCI Machine Learning Repository). Models trained with scikit-learn and XGBoost.</p>
+
+{% if eda %}
+<script type="application/json" id="page-data">{{ {"eda": {"rate_by_tool_wear": eda.rate_by_tool_wear, "rate_by_rpm": eda.rate_by_rpm, "rate_by_torque": eda.rate_by_torque, "rate_by_power": eda.rate_by_power, "overall": eda.failure_rate_pct}}|tojson }}</script>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if eda %}<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script><script src="{{ url_for('static', filename='js/charts.js') }}"></script>{% endif %}{% endblock %}

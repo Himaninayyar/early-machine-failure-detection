@@ -1,0 +1,391 @@
+{
+ "data_quality": {
+  "rows": 10000,
+  "missing_values": 0,
+  "duplicate_rows": 0,
+  "duplicate_feature_rows": 0,
+  "invalid_type": 0,
+  "non_positive_rpm_or_torque": 0,
+  "negative_tool_wear": 0,
+  "process_not_above_air": 0,
+  "target_not_binary": 0,
+  "ok": true
+ },
+ "rows": 10000,
+ "missing_values": 0,
+ "duplicate_rows": 0,
+ "failures": 339,
+ "failure_rate_pct": 3.39,
+ "type_stats": {
+  "H": {
+   "count": 1003,
+   "failures": 21,
+   "failure_rate_pct": 2.09
+  },
+  "L": {
+   "count": 6000,
+   "failures": 235,
+   "failure_rate_pct": 3.92
+  },
+  "M": {
+   "count": 2997,
+   "failures": 83,
+   "failure_rate_pct": 2.77
+  }
+ },
+ "mode_counts": {
+  "TWF": 46,
+  "HDF": 115,
+  "PWF": 95,
+  "OSF": 98,
+  "RNF": 19
+ },
+ "failures_without_mode_flag": 9,
+ "nonfailures_with_mode_flag": 18,
+ "summary": {
+  "air_temp": {
+   "count": 10000.0,
+   "mean": 300.0,
+   "std": 2.0,
+   "min": 295.3,
+   "25%": 298.3,
+   "50%": 300.1,
+   "75%": 301.5,
+   "max": 304.5
+  },
+  "process_temp": {
+   "count": 10000.0,
+   "mean": 310.01,
+   "std": 1.48,
+   "min": 305.7,
+   "25%": 308.8,
+   "50%": 310.1,
+   "75%": 311.1,
+   "max": 313.8
+  },
+  "rpm": {
+   "count": 10000.0,
+   "mean": 1538.78,
+   "std": 179.28,
+   "min": 1168.0,
+   "25%": 1423.0,
+   "50%": 1503.0,
+   "75%": 1612.0,
+   "max": 2886.0
+  },
+  "torque": {
+   "count": 10000.0,
+   "mean": 39.99,
+   "std": 9.97,
+   "min": 3.8,
+   "25%": 33.2,
+   "50%": 40.1,
+   "75%": 46.8,
+   "max": 76.6
+  },
+  "tool_wear": {
+   "count": 10000.0,
+   "mean": 107.95,
+   "std": 63.65,
+   "min": 0.0,
+   "25%": 53.0,
+   "50%": 108.0,
+   "75%": 162.0,
+   "max": 253.0
+  },
+  "temp_diff": {
+   "count": 10000.0,
+   "mean": 10.0,
+   "std": 1.0,
+   "min": 7.6,
+   "25%": 9.3,
+   "50%": 9.8,
+   "75%": 11.0,
+   "max": 12.1
+  },
+  "power_w": {
+   "count": 10000.0,
+   "mean": 6279.74,
+   "std": 1067.42,
+   "min": 1148.44,
+   "25%": 5561.18,
+   "50%": 6271.03,
+   "75%": 7003.0,
+   "max": 10469.92
+  },
+  "wear_torque": {
+   "count": 10000.0,
+   "mean": 4314.66,
+   "std": 2826.57,
+   "min": 0.0,
+   "25%": 1963.65,
+   "50%": 4012.95,
+   "75%": 6279.0,
+   "max": 16497.0
+  }
+ },
+ "summary_by_class": {
+  "air_temp": {
+   "no_failure_mean": 299.97,
+   "failure_mean": 300.89
+  },
+  "process_temp": {
+   "no_failure_mean": 310.0,
+   "failure_mean": 310.29
+  },
+  "rpm": {
+   "no_failure_mean": 1540.26,
+   "failure_mean": 1496.49
+  },
+  "torque": {
+   "no_failure_mean": 39.63,
+   "failure_mean": 50.17
+  },
+  "tool_wear": {
+   "no_failure_mean": 106.69,
+   "failure_mean": 143.78
+  },
+  "temp_diff": {
+   "no_failure_mean": 10.02,
+   "failure_mean": 9.4
+  },
+  "power_w": {
+   "no_failure_mean": 6244.55,
+   "failure_mean": 7282.82
+  },
+  "wear_torque": {
+   "no_failure_mean": 4213.84,
+   "failure_mean": 7187.94
+  }
+ },
+ "correlation_with_failure": {
+  "air_temp": 0.083,
+  "process_temp": 0.036,
+  "rpm": -0.044,
+  "torque": 0.191,
+  "tool_wear": 0.105,
+  "temp_diff": -0.112,
+  "power_w": 0.176,
+  "wear_torque": 0.19
+ },
+ "rate_by_tool_wear": [
+  {
+   "bin": "(-0.001, 50.0]",
+   "failure_rate_pct": 2.17,
+   "failures": 52,
+   "count": 2396
+  },
+  {
+   "bin": "(50.0, 100.0]",
+   "failure_rate_pct": 2.33,
+   "failures": 53,
+   "count": 2271
+  },
+  {
+   "bin": "(100.0, 150.0]",
+   "failure_rate_pct": 2.18,
+   "failures": 50,
+   "count": 2295
+  },
+  {
+   "bin": "(150.0, 200.0]",
+   "failure_rate_pct": 2.9,
+   "failures": 66,
+   "count": 2276
+  },
+  {
+   "bin": "(200.0, 260.0]",
+   "failure_rate_pct": 15.49,
+   "failures": 118,
+   "count": 762
+  }
+ ],
+ "rate_by_temp_diff": [
+  {
+   "bin": "(6.999, 8.5]",
+   "failure_rate_pct": 16.69,
+   "failures": 113,
+   "count": 677
+  },
+  {
+   "bin": "(8.5, 9.0]",
+   "failure_rate_pct": 3.64,
+   "failures": 39,
+   "count": 1071
+  },
+  {
+   "bin": "(9.0, 9.5]",
+   "failure_rate_pct": 2.36,
+   "failures": 51,
+   "count": 2160
+  },
+  {
+   "bin": "(9.5, 10.0]",
+   "failure_rate_pct": 1.96,
+   "failures": 32,
+   "count": 1629
+  },
+  {
+   "bin": "(10.0, 10.5]",
+   "failure_rate_pct": 2.84,
+   "failures": 22,
+   "count": 774
+  },
+  {
+   "bin": "(10.5, 12.0]",
+   "failure_rate_pct": 2.23,
+   "failures": 82,
+   "count": 3685
+  }
+ ],
+ "rate_by_rpm": [
+  {
+   "bin": "(1099.999, 1300.0]",
+   "failure_rate_pct": 22.69,
+   "failures": 49,
+   "count": 216
+  },
+  {
+   "bin": "(1300.0, 1380.0]",
+   "failure_rate_pct": 14.74,
+   "failures": 171,
+   "count": 1160
+  },
+  {
+   "bin": "(1380.0, 1500.0]",
+   "failure_rate_pct": 1.63,
+   "failures": 58,
+   "count": 3550
+  },
+  {
+   "bin": "(1500.0, 1700.0]",
+   "failure_rate_pct": 0.56,
+   "failures": 21,
+   "count": 3734
+  },
+  {
+   "bin": "(1700.0, 2000.0]",
+   "failure_rate_pct": 0.63,
+   "failures": 7,
+   "count": 1114
+  },
+  {
+   "bin": "(2000.0, 3000.0]",
+   "failure_rate_pct": 14.6,
+   "failures": 33,
+   "count": 226
+  }
+ ],
+ "rate_by_torque": [
+  {
+   "bin": "(2.999, 20.0]",
+   "failure_rate_pct": 14.59,
+   "failures": 34,
+   "count": 233
+  },
+  {
+   "bin": "(20.0, 30.0]",
+   "failure_rate_pct": 0.66,
+   "failures": 9,
+   "count": 1369
+  },
+  {
+   "bin": "(30.0, 40.0]",
+   "failure_rate_pct": 0.56,
+   "failures": 19,
+   "count": 3385
+  },
+  {
+   "bin": "(40.0, 50.0]",
+   "failure_rate_pct": 1.9,
+   "failures": 66,
+   "count": 3472
+  },
+  {
+   "bin": "(50.0, 60.0]",
+   "failure_rate_pct": 8.58,
+   "failures": 112,
+   "count": 1305
+  },
+  {
+   "bin": "(60.0, 80.0]",
+   "failure_rate_pct": 41.95,
+   "failures": 99,
+   "count": 236
+  }
+ ],
+ "rate_by_power": [
+  {
+   "bin": "(-0.001, 3500.0]",
+   "failure_rate_pct": 100.0,
+   "failures": 31,
+   "count": 31
+  },
+  {
+   "bin": "(3500.0, 5000.0]",
+   "failure_rate_pct": 0.82,
+   "failures": 9,
+   "count": 1102
+  },
+  {
+   "bin": "(5000.0, 6500.0]",
+   "failure_rate_pct": 0.83,
+   "failures": 39,
+   "count": 4686
+  },
+  {
+   "bin": "(6500.0, 8000.0]",
+   "failure_rate_pct": 3.5,
+   "failures": 127,
+   "count": 3631
+  },
+  {
+   "bin": "(8000.0, 9000.0]",
+   "failure_rate_pct": 14.2,
+   "failures": 69,
+   "count": 486
+  },
+  {
+   "bin": "(9000.0, 15000.0]",
+   "failure_rate_pct": 100.0,
+   "failures": 64,
+   "count": 64
+  }
+ ],
+ "rule_checks": {
+  "HDF": {
+   "rule": "temp_diff < 8.6 K and rpm < 1380",
+   "rule_true": 115,
+   "flag_true": 115,
+   "mismatches": 0
+  },
+  "PWF": {
+   "rule": "power < 3500 W or > 9000 W",
+   "rule_true": 95,
+   "flag_true": 95,
+   "mismatches": 0
+  },
+  "OSF": {
+   "rule": "tool_wear*torque > 11000/12000/13000 (L/M/H)",
+   "rule_true": 98,
+   "flag_true": 98,
+   "mismatches": 0
+  },
+  "TWF": {
+   "wear_min": 198,
+   "wear_max": 253,
+   "records_with_wear_ge_200": 801,
+   "failure_rate_wear_ge_200_pct": 15.4
+  },
+  "RNF": {
+   "flagged": 19,
+   "of_which_machine_failure": 1
+  }
+ },
+ "tool_wear_rates": {
+  "ge_200_pct": 15.4,
+  "lt_200_pct": 2.3,
+  "ge_200_count": 801,
+  "lt_200_count": 9199
+ }
+}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% call page_header("Dashboard", "Which machines are fine and which need a look.") %}
+  <a class="btn btn-primary" href="{{ url_for('main.analyze') }}">Analyze a machine</a>
+{% endcall %}
+
+{% if s.total_predictions == 0 %}
+  <div class="panel">
+    <div class="panel-body">
+      <h2 class="h5 mb-1">Welcome. Nothing has been analysed yet.</h2>
+      <p class="muted mb-4">Enter a machine's sensor readings and get a simple answer: is it fine, or does it need maintenance?</p>
+      <ol class="steps">
+        <li><strong>Analyze a machine.</strong> Type in its readings, or upload a CSV or Excel file for many machines.</li>
+        <li><strong>Read the result.</strong> Normal means carry on, Warning means schedule an inspection, Critical means act now.</li>
+        <li><strong>Follow up.</strong> Warnings and Criticals create an alert you can acknowledge and resolve.</li>
+      </ol>
+      <div class="d-flex gap-2 flex-wrap mt-3">
+        <a class="btn btn-primary" href="{{ url_for('main.analyze') }}">Analyze a machine</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.batch') }}">Upload a file</a>
+      </div>
+      <p class="small-note mt-3 mb-0">New here? The Analyze page has example readings you can load with one click.</p>
+    </div>
+  </div>
+{% else %}
+  <div class="kpi-strip four">
+    <div class="kpi"><div class="label">Machines tracked</div><div class="value">{{ s.machines }}</div><div class="sub"><a href="{{ url_for('main.machines') }}">view all</a></div></div>
+    <div class="kpi"><div class="label">Need attention</div><div class="value {{ 'crit' if s.status.Critical else ('warn' if s.attention else 'ok') }}">{{ s.attention }}</div>
+      <div class="sub">{{ s.status.Critical }} critical, {{ s.status.Warning }} warning</div></div>
+    <div class="kpi"><div class="label">Active alerts</div><div class="value">{{ s.active_alerts }}</div>
+      <div class="sub"><a href="{{ url_for('main.alerts') }}">{{ s.open_alerts }} not yet acknowledged</a></div></div>
+    <div class="kpi"><div class="label">Analyses</div><div class="value">{{ s.total_predictions }}</div><div class="sub"><a href="{{ url_for('main.history') }}">view history</a></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Machine status</h2><span class="hint">based on each machine's latest analysis</span></div>
+    <div class="panel-body">
+      {% set total = s.machines %}
+      <div class="status-bar" role="img" aria-label="{{ s.status.Normal }} normal, {{ s.status.Warning }} warning, {{ s.status.Critical }} critical machines">
+        {% if s.status.Normal %}<span class="seg normal" style="width: {{ s.status.Normal / total * 100 }}%"></span>{% endif %}
+        {% if s.status.Warning %}<span class="seg warning" style="width: {{ s.status.Warning / total * 100 }}%"></span>{% endif %}
+        {% if s.status.Critical %}<span class="seg critical" style="width: {{ s.status.Critical / total * 100 }}%"></span>{% endif %}
+      </div>
+      <div class="status-legend">
+        <span>{{ badge('Normal') }} <b class="num">{{ s.status.Normal }}</b></span>
+        <span>{{ badge('Warning') }} <b class="num">{{ s.status.Warning }}</b></span>
+        <span>{{ badge('Critical') }} <b class="num">{{ s.status.Critical }}</b></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Machines requiring attention</h2><a class="hint" href="{{ url_for('main.machines', attention=1) }}">View all</a></div>
+    {% if s.attention_machines %}
+    <div class="panel-body flush table-wrap">
+      <table class="table-app">
+        <thead><tr><th>Machine</th><th>Status</th><th class="r">Failure probability</th><th>Alert</th><th>Last analysed</th></tr></thead>
+        <tbody>
+        {% for m in s.attention_machines %}
+          <tr>
+            <td><a href="{{ url_for('main.machine_detail', code=m.machine_code) }}">{{ m.machine_code }}</a></td>
+            <td>{{ badge(m.risk_level) }}</td><td class="r">{{ m.probability|pct }}</td>
+            <td>{% if m.alert_id %}<a href="{{ url_for('main.alert_detail', alert_id=m.alert_id) }}">{{ m.alert_status|capitalize }}</a>{% else %}-{% endif %}</td>
+            <td class="num">{{ m.last_analysed }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="panel-body"><span class="muted">No machine needs attention: every machine's latest analysis is Normal.</span></div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Recent analyses</h2><a class="hint" href="{{ url_for('main.history') }}">View all</a></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table-app">
+        <thead><tr><th>Time</th><th>Machine</th><th class="r">Failure probability</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for r in s.recent %}
+          <tr>
+            <td class="num"><a href="{{ url_for('main.result', pid=r.id) }}">{{ r.created_at }}</a></td>
+            <td><a href="{{ url_for('main.machine_detail', code=r.machine_code) }}">{{ r.machine_code }}</a></td>
+            <td class="r">{{ r.probability|pct }}</td><td>{{ badge(r.risk_level) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

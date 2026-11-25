@@ -1,0 +1,138 @@
+{
+ "split": "training only (test set not used)",
+ "train_rows": 8000,
+ "twf_in_training": 36,
+ "twf_rate_pct": 0.45,
+ "bands": [
+  {
+   "band": "0-150",
+   "machines": 5527,
+   "twf": 0,
+   "twf_rate_pct": 0.0,
+   "twf_ci95_pct": [
+    0.0,
+    0.1
+   ],
+   "any_failure_rate_pct": 2.3
+  },
+  {
+   "band": "150-200",
+   "machines": 1847,
+   "twf": 0,
+   "twf_rate_pct": 0.0,
+   "twf_ci95_pct": [
+    0.0,
+    0.2
+   ],
+   "any_failure_rate_pct": 2.7
+  },
+  {
+   "band": "200-210",
+   "machines": 320,
+   "twf": 13,
+   "twf_rate_pct": 4.1,
+   "twf_ci95_pct": [
+    2.4,
+    6.8
+   ],
+   "any_failure_rate_pct": 12.2
+  },
+  {
+   "band": "210-220",
+   "machines": 195,
+   "twf": 11,
+   "twf_rate_pct": 5.6,
+   "twf_ci95_pct": [
+    3.2,
+    9.8
+   ],
+   "any_failure_rate_pct": 15.4
+  },
+  {
+   "band": "220-230",
+   "machines": 76,
+   "twf": 7,
+   "twf_rate_pct": 9.2,
+   "twf_ci95_pct": [
+    4.5,
+    17.8
+   ],
+   "any_failure_rate_pct": 23.7
+  },
+  {
+   "band": "230-240",
+   "machines": 26,
+   "twf": 4,
+   "twf_rate_pct": 15.4,
+   "twf_ci95_pct": [
+    6.1,
+    33.5
+   ],
+   "any_failure_rate_pct": 30.8
+  },
+  {
+   "band": "240+",
+   "machines": 9,
+   "twf": 1,
+   "twf_rate_pct": 11.1,
+   "twf_ci95_pct": [
+    2.0,
+    43.5
+   ],
+   "any_failure_rate_pct": 22.2
+  }
+ ],
+ "candidates": [
+  {
+   "key": "constant",
+   "description": "Always the training TWF rate (no information)",
+   "pr_auc_mean": 0.0045,
+   "pr_auc_sd": 0.0002,
+   "roc_auc_mean": 0.5,
+   "folds": 25
+  },
+  {
+   "key": "wear_200",
+   "description": "Binary: tool wear 200 min or more",
+   "pr_auc_mean": 0.0579,
+   "pr_auc_sd": 0.0054,
+   "roc_auc_mean": 0.963,
+   "folds": 25
+  },
+  {
+   "key": "wear_only",
+   "description": "Score = tool wear itself (higher = riskier)",
+   "pr_auc_mean": 0.1542,
+   "pr_auc_sd": 0.0744,
+   "roc_auc_mean": 0.9749,
+   "folds": 25
+  },
+  {
+   "key": "hinge_lr",
+   "description": "Logistic regression on 'wear >= 200' and minutes above 200",
+   "pr_auc_mean": 0.1542,
+   "pr_auc_sd": 0.0744,
+   "roc_auc_mean": 0.9749,
+   "folds": 25
+  },
+  {
+   "key": "hinge_torque_lr",
+   "description": "Same plus torque and (minutes above 200) x torque",
+   "pr_auc_mean": 0.1478,
+   "pr_auc_sd": 0.0654,
+   "roc_auc_mean": 0.9731,
+   "folds": 25
+  },
+  {
+   "key": "shipped_rf",
+   "description": "Shipped failure-mode model: Random Forest on all readings and derived features",
+   "pr_auc_mean": 0.1001,
+   "pr_auc_sd": 0.0623,
+   "roc_auc_mean": 0.9589,
+   "folds": 25
+  }
+ ],
+ "chance_pr_auc": 0.0045,
+ "verdict": "The best simple estimate (wear_only, PR-AUC 0.154) and the shipped model (0.100) differ by 0.054, less than the fold-to-fold spread (0.074). No candidate is reliably better.",
+ "conclusion": "In this dataset a tool fails from wear at a random point once it is worn, so the readings only say that risk rises with wear above about 200 min. With so few TWF examples no model can do better, so TWF is shown as a maintenance notice, not as a forecast."
+}

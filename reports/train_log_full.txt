@@ -1,0 +1,67 @@
+data quality: {'rows': 10000, 'missing_values': 0, 'duplicate_rows': 0, 'duplicate_feature_rows': 0, 'invalid_type': 0, 'non_positive_rpm_or_torque': 0, 'negative_tool_wear': 0, 'process_not_above_air': 0, 'target_not_binary': 0, 'ok': True}
+profile=full | train 8000 (271 failures) | test 2000 (68 failures)
+[A] lr  wt=False none         AP=0.500+-0.050 ROC=0.914 bestF1=0.513
+[A] lr  wt=False class_weight AP=0.483+-0.053 ROC=0.919 bestF1=0.501
+[A] lr  wt=False smote        AP=0.467+-0.059 ROC=0.907 bestF1=0.500
+[A] lr  wt=True  none         AP=0.499+-0.049 ROC=0.913 bestF1=0.516
+[A] lr  wt=True  class_weight AP=0.457+-0.055 ROC=0.922 bestF1=0.491
+[A] lr  wt=True  smote        AP=0.431+-0.055 ROC=0.911 bestF1=0.467
+[A] rf  wt=False none         AP=0.879+-0.030 ROC=0.975 bestF1=0.852
+[A] rf  wt=False class_weight AP=0.870+-0.028 ROC=0.974 bestF1=0.854
+[A] rf  wt=False smote        AP=0.819+-0.036 ROC=0.973 bestF1=0.775
+[A] rf  wt=True  none         AP=0.898+-0.026 ROC=0.974 bestF1=0.899
+[A] rf  wt=True  class_weight AP=0.888+-0.029 ROC=0.973 bestF1=0.892
+[A] rf  wt=True  smote        AP=0.851+-0.028 ROC=0.977 bestF1=0.802
+[A] xgb wt=False none         AP=0.844+-0.036 ROC=0.976 bestF1=0.818
+[A] xgb wt=False class_weight AP=0.832+-0.042 ROC=0.975 bestF1=0.814
+[A] xgb wt=False smote        AP=0.847+-0.038 ROC=0.970 bestF1=0.822
+[A] xgb wt=True  none         AP=0.868+-0.035 ROC=0.977 bestF1=0.851
+[A] xgb wt=True  class_weight AP=0.862+-0.033 ROC=0.977 bestF1=0.854
+[A] xgb wt=True  smote        AP=0.867+-0.029 ROC=0.971 bestF1=0.860
+[A] mean AP gain from wear*torque proxy = +0.014 -> use_wear_torque=True; strategies: {'lr': 'none', 'rf': 'none', 'xgb': 'none'}
+[B] lr: cv PR-AUC=0.4992 params={'C': 0.31489116479568624}
+[B] rf: cv PR-AUC=0.9084 params={'n_estimators': 300, 'min_samples_leaf': 2, 'max_features': 0.5, 'max_depth': 10}
+data quality: {'rows': 10000, 'missing_values': 0, 'duplicate_rows': 0, 'duplicate_feature_rows': 0, 'invalid_type': 0, 'non_positive_rpm_or_torque': 0, 'negative_tool_wear': 0, 'process_not_above_air': 0, 'target_not_binary': 0, 'ok': True}
+profile=full | train 8000 (271 failures) | test 2000 (68 failures)
+[A] lr  wt=False none         AP=0.500+-0.050 ROC=0.914 bestF1=0.513
+[A] lr  wt=False class_weight AP=0.483+-0.053 ROC=0.919 bestF1=0.501
+[A] lr  wt=False smote        AP=0.467+-0.059 ROC=0.907 bestF1=0.500
+[A] lr  wt=True  none         AP=0.499+-0.049 ROC=0.913 bestF1=0.516
+[A] lr  wt=True  class_weight AP=0.457+-0.055 ROC=0.922 bestF1=0.491
+[A] lr  wt=True  smote        AP=0.431+-0.055 ROC=0.911 bestF1=0.467
+[A] rf  wt=False none         AP=0.879+-0.030 ROC=0.975 bestF1=0.852
+[A] rf  wt=False class_weight AP=0.870+-0.028 ROC=0.974 bestF1=0.854
+[A] rf  wt=False smote        AP=0.819+-0.036 ROC=0.973 bestF1=0.775
+[A] rf  wt=True  none         AP=0.898+-0.026 ROC=0.974 bestF1=0.899
+[A] rf  wt=True  class_weight AP=0.888+-0.029 ROC=0.973 bestF1=0.892
+[A] rf  wt=True  smote        AP=0.851+-0.028 ROC=0.977 bestF1=0.802
+[A] xgb wt=False none         AP=0.844+-0.036 ROC=0.976 bestF1=0.818
+[A] xgb wt=False class_weight AP=0.832+-0.042 ROC=0.975 bestF1=0.814
+[A] xgb wt=False smote        AP=0.847+-0.038 ROC=0.970 bestF1=0.822
+[A] xgb wt=True  none         AP=0.868+-0.035 ROC=0.977 bestF1=0.851
+[A] xgb wt=True  class_weight AP=0.862+-0.033 ROC=0.977 bestF1=0.854
+[A] xgb wt=True  smote        AP=0.867+-0.029 ROC=0.971 bestF1=0.860
+[A] mean AP gain from wear*torque proxy = +0.014 -> use_wear_torque=True; strategies: {'lr': 'none', 'rf': 'none', 'xgb': 'none'}
+[B] lr: cv PR-AUC=0.4992 params={'C': 0.31489116479568624}
+[B] rf: cv PR-AUC=0.9084 params={'n_estimators': 300, 'min_samples_leaf': 2, 'max_features': 0.5, 'max_depth': 10}
+[B] xgb: cv PR-AUC=0.8797 params={'subsample': 0.85, 'reg_lambda': 5, 'n_estimators': 200, 'min_child_weight': 1, 'max_depth': 4, 'learning_rate': 0.05, 'colsample_bytree': 1.0}
+[C] lr  none     OOF PR-AUC=0.492 Brier=0.02317
+[C] lr  sigmoid  OOF PR-AUC=0.489 Brier=0.02311
+[C] lr  isotonic OOF PR-AUC=0.482 Brier=0.02311
+[C] rf  none     OOF PR-AUC=0.913 Brier=0.00633
+[C] rf  sigmoid  OOF PR-AUC=0.907 Brier=0.00624
+[C] rf  isotonic OOF PR-AUC=0.908 Brier=0.00622
+[C] xgb none     OOF PR-AUC=0.884 Brier=0.00864
+[C] xgb sigmoid  OOF PR-AUC=0.883 Brier=0.00853
+[C] xgb isotonic OOF PR-AUC=0.878 Brier=0.00846
+[D] ensemble weights {'lr': 0.3333, 'rf': 0.3333, 'xgb': 0.3333} adopted_tuned=False (oof gain +0.0241, split-half +0.0243)
+[E] default model = rf | ranking ['rf', 'ens', 'xgb', 'lr']
+[F] lr  test PR-AUC=0.451 ROC=0.915 Brier=0.02426 | @0.3 P=0.565 R=0.382 F1=0.456 (TP=26 FP=20 FN=42)
+[F] rf  test PR-AUC=0.900 ROC=0.980 Brier=0.00684 | @0.3 P=0.966 R=0.824 F1=0.889 (TP=56 FP=2 FN=12)
+[F] xgb test PR-AUC=0.901 ROC=0.976 Brier=0.00739 | @0.3 P=0.891 R=0.838 F1=0.864 (TP=57 FP=7 FN=11)
+[F] ens test PR-AUC=0.881 ROC=0.966 Brier=0.00891 | @0.3 P=0.918 R=0.824 F1=0.868 (TP=56 FP=5 FN=12)
+[G] TWF: train positives 36, test positives 10, OOF PR-AUC 0.0612, test PR-AUC 0.0925
+[G] HDF: train positives 86, test positives 29, OOF PR-AUC 0.9814, test PR-AUC 0.9305
+[G] PWF: train positives 82, test positives 13, OOF PR-AUC 0.9999, test PR-AUC 1.0
+[G] OSF: train positives 82, test positives 16, OOF PR-AUC 0.9949, test PR-AUC 1.0
+done in 4.5 min of work in this session -> /tmp/newmodels/ (version 20261117-0629)

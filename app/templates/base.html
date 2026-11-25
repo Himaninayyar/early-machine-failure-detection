@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} - Machine Failure Detection</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body data-page="{{ request.endpoint.split('.')[-1] if request.endpoint else '' }}">
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="app-shell">
+
+  <aside class="sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="sidebar" aria-label="Main navigation">
+    <div class="brand">
+      <div>
+        <div class="brand-name">Machine Failure Detection</div>
+        <div class="brand-sub">Predictive maintenance</div>
+      </div>
+      <button type="button" class="btn-close btn-close-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close menu"></button>
+    </div>
+    <nav>
+      {% for endpoint, label in nav %}
+        <a class="nav-item-app {{ 'active' if active_nav == endpoint }}" href="{{ url_for(endpoint) }}" {{ 'aria-current=page' if active_nav == endpoint }}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar d-lg-none">
+      <button class="menu-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar">Menu</button>
+      <span>Machine Failure Detection</span>
+    </header>
+    <main class="content" id="content">
+      {% if db_error %}
+        <div class="notice notice-danger" role="alert"><strong>Database problem.</strong> {{ db_error }} History, machines and alerts are unavailable until this is fixed.</div>
+      {% endif %}
+      {% if not registry.ready %}
+        <div class="notice notice-danger" role="alert"><strong>Predictions are unavailable.</strong> No model could be loaded.
+          See <a href="{{ url_for('main.insights') }}">Model Insights</a> for the reason, or run <code>python -m ml.train</code>.</div>
+      {% elif registry.default_is_fallback %}
+        <div class="notice notice-warning" role="status"><strong>Using a fallback model.</strong> The designated default model could not be loaded, so
+          {{ default_model_label }} is being used instead. Details are on <a href="{{ url_for('main.insights') }}">Model Insights</a>.</div>
+      {% endif %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="notice notice-{{ category if category in ('warning', 'success', 'danger') else 'info' }}" role="status">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health, alert_status with context %}
+{% block title %}Machines{% endblock %}
+{% block content %}
+{% call page_header("Machines", "Every machine you have analysed, with the status of its most recent analysis.") %}
+  <a class="btn btn-primary" href="{{ url_for('main.analyze') }}">Analyze a machine</a>
+{% endcall %}
+
+<form class="panel" method="get" action="{{ url_for('main.machines') }}">
+  <div class="panel-body d-flex gap-3 align-items-end flex-wrap">
+    <div><label class="form-label" for="q">Search by machine ID</label><input class="form-control" id="q" name="q" value="{{ q }}" maxlength="40"></div>
+    <label class="check-row m-0"><input type="checkbox" name="attention" value="1" {{ 'checked' if attention }}> Only machines needing attention</label>
+    <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Apply</button><a class="btn btn-outline-secondary" href="{{ url_for('main.machines') }}">Reset</a></div>
+  </div>
+</form>
+
+<div class="panel">
+  {% if not machines %}
+    <div class="empty-state">
+      {% if total == 0 %}<h2>No machines yet</h2><p>A machine is created the first time you analyse it under a Machine ID.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.analyze') }}">Analyze a machine</a>
+      {% else %}<h2>No machines match</h2><p>Try a different search, or clear the filter.</p><a class="btn btn-outline-secondary" href="{{ url_for('main.machines') }}">Reset</a>{% endif %}
+    </div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Machine</th><th>Type</th><th>Status</th><th class="r">Failure probability</th><th>Health</th><th>Active alert</th><th class="r">Analyses</th><th>Last analysed</th></tr></thead>
+      <tbody>
+      {% for m in machines %}
+        <tr>
+          <td><a href="{{ url_for('main.machine_detail', code=m.machine_code) }}">{{ m.machine_code }}</a></td><td>{{ m.machine_type }}</td>
+          <td>{% if m.risk_level %}{{ badge(m.risk_level) }}{% else %}-{% endif %}</td><td class="r">{{ m.probability|pct }}</td>
+          <td>{% if m.health_score is not none %}{{ health(m.health_score) }}{% else %}-{% endif %}</td>
+          <td>{% if m.alert_id %}<a href="{{ url_for('main.alert_detail', alert_id=m.alert_id) }}">{{ alert_status(m.alert_status) }}</a>{% else %}-{% endif %}</td>
+          <td class="r">{{ m.n_predictions }}</td><td class="num">{{ m.last_analysed or '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

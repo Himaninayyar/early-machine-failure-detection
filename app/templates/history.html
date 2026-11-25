@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health, sort_th, pager with context %}
+{% block title %}History{% endblock %}
+{% block content %}
+{% call page_header("Prediction History", "Every analysis ever made. Saved records never change, even when models are retrained.") %}
+  <a class="btn btn-outline-secondary {{ 'disabled' if not total }}" href="{{ url_for('main.export_csv', **export_params) }}">Export CSV{{ ' (filtered)' if export_params }}</a>
+{% endcall %}
+
+<form class="panel" method="get" action="{{ url_for('main.history') }}">
+  <div class="panel-body">
+    <div class="filters">
+      <div><label class="form-label" for="f-machine">Machine ID contains</label><input class="form-control" id="f-machine" name="machine" value="{{ f.machine }}" maxlength="40"></div>
+      <div><label class="form-label" for="f-model">Model</label>
+        <select class="form-select" id="f-model" name="model"><option value="">All models</option>
+          {% for key, label in models.items() %}<option value="{{ key }}" {{ 'selected' if f.model == key }}>{{ label }}</option>{% endfor %}</select></div>
+      <div><label class="form-label" for="f-from">From</label><input class="form-control" type="date" id="f-from" name="date_from" value="{{ f.date_from }}"></div>
+      <div><label class="form-label" for="f-to">To</label><input class="form-control" type="date" id="f-to" name="date_to" value="{{ f.date_to }}"></div>
+      <div class="wide"><span class="form-label d-block">Status</span>
+        <div class="check-row">{% for lvl in levels %}<label><input type="checkbox" name="risk" value="{{ lvl }}" {{ 'checked' if lvl in f.risk }}> {{ lvl }}</label>{% endfor %}</div></div>
+      <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Apply</button><a class="btn btn-outline-secondary" href="{{ url_for('main.history') }}">Reset</a></div>
+    </div>
+  </div>
+</form>
+
+<div class="panel">
+  {% if not total %}
+    <div class="empty-state">
+      {% if not any_saved %}<h2>No analyses saved yet</h2><p>Every analysis you run is recorded here automatically.</p><a class="btn btn-primary" href="{{ url_for('main.analyze') }}">Analyze a machine</a>
+      {% else %}<h2>No analyses match these filters</h2><p>Try widening the date range or clearing a filter.</p><a class="btn btn-outline-secondary" href="{{ url_for('main.history') }}">Reset filters</a>{% endif %}
+    </div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="table-app">
+      <thead><tr>
+        {{ sort_th("Time", "created_at", sort, direction) }}{{ sort_th("Machine", "machine", sort, direction) }}
+        <th class="r">Air / process (K)</th><th class="r">Speed (rpm)</th><th class="r">Torque (Nm)</th><th class="r">Wear (min)</th>
+        {{ sort_th("Probability", "probability", sort, direction, true) }}{{ sort_th("Status", "risk", sort, direction) }}{{ sort_th("Health", "health", sort, direction) }}
+        {{ sort_th("Model", "model", sort, direction) }}<th>Recommendation</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="num"><a href="{{ url_for('main.result', pid=r.id) }}">{{ r.created_at }}</a></td>
+          <td><a href="{{ url_for('main.machine_detail', code=r.machine_code) }}">{{ r.machine_code }}</a> <span class="muted">({{ r.machine_type }})</span></td>
+          <td class="r">{{ r.air_temp|num(1) }} / {{ r.process_temp|num(1) }}</td><td class="r">{{ r.rpm|num(0) }}</td><td class="r">{{ r.torque|num(1) }}</td><td class="r">{{ r.tool_wear|num(0) }}</td>
+          <td class="r">{{ r.probability|pct }}</td><td>{{ badge(r.risk_level) }}</td><td>{{ health(r.health_score) }}</td>
+          <td title="version {{ r.model_version }}">{{ r.model_label }}</td><td class="wrap">{{ r.recommendation }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pager(page, pages, total, per_page, "analyses") }}
+  {% endif %}
+</div>
+<p class="small-note">Hover over a model name to see the model version that produced the result. The CSV export also lists the rule-based indicators and the failure-mode estimates shown at the time.</p>
+{% endblock %}

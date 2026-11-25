@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health, csrf with context %}
+{% block title %}Analysis result{% endblock %}
+{% block content %}
+{% call page_header("Result for " ~ p.machine_code, "Analysed " ~ p.created_at) %}
+  <a class="btn btn-primary" href="{{ url_for('main.analyze', machine=p.machine_code) }}">Analyze again</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.machine_detail', code=p.machine_code) }}">View machine</a>
+{% endcall %}
+
+{% for w in d.get('input_warnings', []) %}<div class="notice notice-warning">{{ w }}</div>{% endfor %}
+{% for n in d.get('maintenance', []) %}<div class="notice notice-warning" role="status"><strong>Maintenance notice: {{ n.title }}.</strong> {{ n.detail }}</div>{% endfor %}
+
+<!-- ============ 1. the answer ============ -->
+<div class="panel">
+  <div class="panel-body">
+    <div class="summary-grid two">
+      <div>
+        <div class="label">Status</div>
+        <div class="mt-2">{{ badge(p.risk_level, true) }}</div>
+      </div>
+      <div>
+        <div class="label">Chance of failure</div>
+        <div class="prob {{ p.risk_level|lower }}">{{ p.probability|pct }}</div>
+        <div class="small-note">estimated from these readings</div>
+      </div>
+    </div>
+
+    <div class="tbar" role="img" aria-label="Failure probability {{ p.probability|pct }} on a scale from 0 to 100 percent">
+      <div class="tbar-track">
+        <span class="seg ok"></span><span class="seg warn"></span><span class="seg crit"></span>
+        <span class="tbar-marker" style="left: {{ [p.probability * 100, 100]|min }}%"></span>
+      </div>
+      <div class="tbar-scale"><span style="left:0">0%</span><span style="left:30%">30%</span><span style="left:70%">70%</span><span style="left:100%">100%</span></div>
+    </div>
+
+    <div class="callout {{ p.risk_level|lower }}">
+      <div class="callout-title">What to do: {{ level.action }}</div>
+      <div>{{ level.guidance }}</div>
+    </div>
+
+    <div class="small-note mt-3">
+      {% if prev %}Last time: {{ prev.probability|pct }} ({{ prev.risk_level }}), a change of {{ '%+.1f'|format((p.probability - prev.probability) * 100) }} points.
+        <a href="{{ url_for('main.result', pid=prev.id) }}">View</a>.{% else %}This is the first analysis of this machine.{% endif %}
+      {% if alert %}<br>Active alert: <a href="{{ url_for('main.alert_detail', alert_id=alert.id) }}">#{{ alert.id }}, {{ alert.current_level }}, {{ alert.status }}</a>.{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ============ 2. why ============ -->
+{% set c = d.get('contributions') %}
+<div class="panel">
+  <div class="panel-head"><h2>What drove this result</h2><span class="hint">which readings pushed the risk up or down</span></div>
+  <div class="panel-body">
+  {% if c %}
+    {% set mx = c.contributions|map(attribute='contribution')|map('abs')|max %}
+    {% set shown = {"Machine type": p.machine_type, "Temperatures": (p.air_temp|num) ~ " / " ~ (p.process_temp|num) ~ " K",
+                    "Rotational speed": (p.rpm|num(0)) ~ " rpm", "Torque": (p.torque|num) ~ " Nm", "Tool wear": (p.tool_wear|num(0)) ~ " min"} %}
+    <p class="small-note">A typical machine is at about {{ c.base_value|pct }}; this one is at {{ p.probability|pct }}. Bars to the right raise the risk, bars to the left lower it.</p>
+    {% for e in c.contributions %}
+      <div class="effect">
+        <div>{{ e.group }}<div class="small-note">{{ shown[e.group] }}</div></div>
+        <div class="effect-axis">{% if mx > 0 %}<span class="effect-fill {{ 'up' if e.contribution > 0 else 'down' }}" style="width: {{ (e.contribution|abs / mx * 50)|round(1) }}%"></span>{% endif %}</div>
+        {% set pp = e.contribution * 100 %}<div class="num text-end">{{ ('%+.1f'|format(pp)) if pp|abs >= 0.05 else '0.0' }} pp</div>
+      </div>
+    {% endfor %}
+    <details class="mt-3"><summary class="small-note">How is this worked out?</summary>
+    <p class="small-note mt-2 mb-0">Exact Shapley values over these five groups, against typical training readings (pp = percentage points). They add up to the difference above. They show how the <em>model</em> responds to each reading, not what physically causes a failure.</p></details>
+  {% else %}
+    <p class="muted mb-0">No explanation was stored for this analysis{% if p.source in ('batch', 'migrated') %} ({{ 'batch uploads' if p.source == 'batch' else 'analyses migrated from an older version' }} are not explained){% endif %}. Analyze the machine again from the Analyze page to see one.</p>
+  {% endif %}
+  </div>
+</div>
+
+<!-- ============ 3. failure modes ============ -->
+{% if p.risk_level != 'Normal' %}
+<div class="panel">
+  <div class="panel-head"><h2>Possible failure modes</h2><span class="hint">suggestions to investigate, not a diagnosis</span></div>
+  {% if modes %}
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Failure mode</th><th class="r">Model estimate</th><th>Rule check</th><th>Suggested action</th></tr></thead>
+      <tbody>
+      {% for m in modes %}
+        <tr>
+          <td><span class="code">{{ m.code }}</span> {{ m.name }}</td>
+          <td class="r">{% if m.model_estimate is not none and m.code in reliable_modes %}{{ m.model_estimate|pct }}{% else %}<span class="muted">not modelled</span>{% endif %}</td>
+          <td>{{ 'Condition present' if m.rule_indicator else 'Not triggered' }}</td>
+          <td class="wrap">{{ m.action }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if d.get('indicators') %}
+  <div class="panel-body">
+    {% for i in d.indicators %}<div class="cond"><strong>{{ i.title }}.</strong> {{ i.detail }}</div>{% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="panel-body muted">No specific failure mode stands out. The overall risk is elevated, so inspect the machine generally, starting with the readings that contributed most above.</div>
+  {% endif %}
+  <div class="panel-body small-note">
+    <em>Model estimate</em> comes from a machine-learning model; <em>Rule check</em> is a simple test of documented failure conditions. They are separate and can disagree.
+    <details class="mt-2"><summary>More detail</summary>
+      <p class="mt-2 mb-0">Model estimates are shown only for failure modes that were reliable in validation ({{ reliable_modes|join(', ') or 'none' }}). {{ mode_note }}
+      The overall failure probability above comes from a different model that does not identify failure types.</p></details>
+  </div>
+</div>
+{% endif %}
+
+<!-- ============ 4. what-if ============ -->
+<details class="fold">
+  <summary>What if the readings were different? <span class="muted small-note">(optional, nothing is saved)</span></summary>
+  <div class="fold-body">
+  {% if what_if_ok %}
+    <form id="whatif-form" data-prediction="{{ p.id }}" data-baseline="{{ p.probability }}" data-url="{{ url_for('main.api_what_if') }}">
+      <div class="whatif-grid">
+        {% for key, (label, unit, lo, hi, help) in FIELDS.items() %}
+        <div>
+          <label class="form-label" for="wi-{{ key }}">{{ label }}</label>
+          <div class="input-unit"><input class="form-control num" id="wi-{{ key }}" name="{{ key }}" type="number" step="any" value="{{ p[key]|plain }}" data-original="{{ p[key]|plain }}"><span class="unit">{{ unit }}</span></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex gap-2 align-items-center mt-3">
+        <button type="submit" class="btn btn-outline-secondary" id="whatif-btn">Calculate</button>
+        <button type="button" class="btn btn-link" id="whatif-reset">Reset to actual readings</button>
+      </div>
+    </form>
+    <div id="whatif-result" class="mt-3" aria-live="polite"></div>
+    <p class="small-note mt-2 mb-0">This re-runs the same model with your changed values. It shows how the model's estimate responds. <strong>It does not establish a causal relationship</strong>: changing a real machine's setting may not change its failure risk in the same way.</p>
+  {% else %}
+    <p class="muted mb-0">What-if analysis is not available for this analysis because the model that produced it ({{ p.model_label }}, version {{ p.model_version }}) is not the one currently loaded. Analyze the machine again to use it.</p>
+  {% endif %}
+  </div>
+</details>
+
+<!-- ============ 5. technical details ============ -->
+<details class="fold">
+  <summary>Technical details</summary>
+  <div class="fold-body">
+    <dl class="meta">
+      <dt>Model</dt><dd>{{ p.model_label }} (calibrated probabilities), version {{ p.model_version }}</dd>
+      <dt>Source</dt><dd>{{ {'form': 'Analyze form', 'api': 'JSON API', 'batch': 'CSV batch', 'migrated': 'Migrated from older version'}[p.source] }}</dd>
+      <dt>Machine type</dt><dd>{{ p.machine_type }}</dd>
+      <dt>Readings</dt><dd>air {{ p.air_temp|num }} K, process {{ p.process_temp|num }} K, {{ p.rpm|num(0) }} rpm, {{ p.torque|num }} Nm, tool wear {{ p.tool_wear|num(0) }} min</dd>
+      {% set dv = d.get('derived') %}
+      {% if dv %}
+      <dt>Temperature difference</dt><dd>{{ dv.temp_diff|num(1) }} K (process - air)</dd>
+      <dt>Approximate power</dt><dd>{{ dv.power_w|num(0) }} W (torque x speed)</dd>
+      <dt>Wear x torque</dt><dd>{{ (dv.wear_torque if dv.wear_torque is defined else dv.strain)|num(0) }} min&middot;Nm (a load proxy, not physical strain)</dd>
+      {% endif %}
+      <dt>Health score</dt><dd>{{ health_formula }} {{ health_note }}</dd>
+      <dt>Recommendation stored</dt><dd>{{ p.recommendation }}</dd>
+    </dl>
+    <p class="small-note mt-3 mb-0">This record is stored exactly as produced and never changes, even if the models are retrained later. See <a href="{{ url_for('main.insights') }}">Model Insights</a> for how the model was built and evaluated.</p>
+  </div>
+</details>
+{% endblock %}

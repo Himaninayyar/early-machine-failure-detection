@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, csrf with context %}
+{% block title %}Analyze Machine{% endblock %}
+{% block content %}
+{% call page_header("Analyze Machine", "Enter the readings from one machine. New here? Load an example on the right.") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.batch') }}">Many machines? Upload a file</a>
+{% endcall %}
+
+{% if errors %}<div class="notice notice-warning" role="alert"><strong>Please check the highlighted fields.</strong> Nothing was analysed or saved.</div>{% endif %}
+{% for w in warnings or [] %}<div class="notice notice-warning">{{ w }}</div>{% endfor %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <form method="post" action="{{ url_for('main.analyze') }}" id="analyze-form" novalidate>
+      {{ csrf() }}
+      <div class="panel">
+        <div class="panel-head"><h2>Step 1: Which machine?</h2></div>
+        <div class="panel-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="machine_id">Machine ID</label>
+              <input class="form-control {{ 'is-invalid' if errors.machine_id }}" id="machine_id" name="machine_id" maxlength="40" required
+                     list="known-machines" autocomplete="off" value="{{ form.get('machine_id', '') }}" placeholder="e.g. PUMP-07">
+              <datalist id="known-machines">{% for m in known_machines %}<option value="{{ m.code }}">{% endfor %}</datalist>
+              {% if errors.machine_id %}<div class="invalid-feedback">{{ errors.machine_id }}</div>
+              {% else %}<div class="form-text">Any name you like. Reuse it to track the same machine over time.</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="type">Machine type</label>
+              <select class="form-select {{ 'is-invalid' if errors.type }}" id="type" name="type" required>
+                <option value="">Select...</option>
+                {% for t, d in TYPE_HELP.items() %}<option value="{{ t }}" {{ 'selected' if form.get('type') == t }}>{{ t }} - {{ d }}</option>{% endfor %}
+              </select>
+              {% if errors.type %}<div class="invalid-feedback">{{ errors.type }}</div>
+              {% else %}<div class="form-text" id="type-note">Quality variant it produces. Cannot change later.</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Step 2: Its current readings</h2></div>
+        <div class="panel-body">
+          <div class="row g-3">
+            {% for key, (label, unit, lo, hi, help) in FIELDS.items() %}
+            <div class="col-md-6">
+              <label class="form-label" for="{{ key }}">{{ label }}</label>
+              <div class="input-unit">
+                <input class="form-control num {{ 'is-invalid' if errors[key] }}" id="{{ key }}" name="{{ key }}" type="number" step="any"
+                       min="{{ lo }}" max="{{ hi }}" required inputmode="decimal" value="{{ form.get(key, '')|plain }}">
+                <span class="unit">{{ unit }}</span>
+              </div>
+              {% if errors[key] %}<div class="invalid-feedback d-block">{{ errors[key] }}</div>{% endif %}
+              <div class="form-text">Typical: {{ ranges[key].min|num(1 if key in ('air_temp','process_temp','torque') else 0) }} to {{ ranges[key].max|num(1 if key in ('air_temp','process_temp','torque') else 0) }} {{ unit }}.</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <details class="fold">
+        <summary>Advanced: choose a different model</summary>
+        <div class="fold-body">
+          <label class="form-label" for="model">Prediction model</label>
+          <select class="form-select" id="model" name="model" style="max-width: 360px">
+            {% for key, label in models.items() %}<option value="{{ key }}" {{ 'selected' if (form.get('model') or default_model) == key }}>{{ label }}{{ ' (recommended)' if key == default_model }}</option>{% endfor %}
+          </select>
+          <div class="form-text">The recommended model was chosen from validation results (see Model Insights). Other models are for comparison.</div>
+          {% if errors.model %}<div class="invalid-feedback d-block">{{ errors.model }}</div>{% endif %}
+        </div>
+      </details>
+
+      <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-primary" type="submit" id="submit-btn" {{ 'disabled' if not registry.ready }}>Analyze machine</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.analyze') }}">Clear</a>
+        <span class="muted small-note" id="busy-note" hidden>Analyzing...</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="panel">
+      <div class="panel-head"><h2>Try an example</h2></div>
+      <div class="panel-body">
+        <p class="small-note">Click one to fill in the form.</p>
+        <div class="d-grid gap-2">
+          {% for ex in examples %}
+            <button type="button" class="example-btn" data-example="{{ loop.index0 }}"><strong>{{ ex.label }}</strong><span>{{ ex.note }}</span></button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>What the result means</h2></div>
+      <div class="panel-body flush">
+        <table class="table-app">
+          <tbody>
+            <tr><td>{{ badge('Normal') }}</td><td>under 30%</td><td>Continue operation</td></tr>
+            <tr><td>{{ badge('Warning') }}</td><td>30% to 70%</td><td>Schedule inspection</td></tr>
+            <tr><td>{{ badge('Critical') }}</td><td>70% or more</td><td>Immediate maintenance</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body small-note">The percentage is the estimated chance the machine is failing now. It does not say when.</div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="page-data">{{ {"examples": examples, "machines": known_machines}|tojson }}</script>
+{% endblock %}

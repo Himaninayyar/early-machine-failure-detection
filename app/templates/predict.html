@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge %}
+{% block title %}Machine Prediction{% endblock %}
+{% block content %}
+{{ page_header("Machine Prediction", "Enter a machine's current sensor readings. The trained model returns a failure probability, which is classified as Normal, Warning or Critical.") }}
+
+{% if errors %}
+  <div class="notice notice-warning" role="alert">Some inputs need attention. No prediction was made or saved.</div>
+{% endif %}
+
+<div class="row g-3">
+  <!-- ============ input form ============ -->
+  <div class="col-xl-5">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Machine readings</h2>
+        <select id="example-select" class="form-select form-select-sm" style="width:auto;max-width:100%" aria-label="Load an example reading">
+          <option value="">Load an example...</option>
+          {% for ex in examples %}<option value="{{ loop.index0 }}">{{ ex.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="panel-body">
+        <form method="post" action="{{ url_for('main.predict') }}" id="predict-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <fieldset class="group">
+            <legend>Machine</legend>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label" for="machine_id">Machine ID <span class="muted fw-normal">(optional)</span></label>
+                <input class="form-control {{ 'is-invalid' if errors.machine_id }}" id="machine_id" name="machine_id" maxlength="40"
+                       value="{{ form.get('machine_id', '') }}" placeholder="e.g. PUMP-07">
+                {% if errors.machine_id %}<div class="invalid-feedback">{{ errors.machine_id }}</div>{% else %}
+                <div class="form-text">Blank = automatic ID.</div>{% endif %}
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="type">Machine type <span class="muted fw-normal">(quality)</span></label>
+                <select class="form-select {{ 'is-invalid' if errors.type }}" id="type" name="type" required>
+                  <option value="">Select...</option>
+                  {% for t, d in [('L', 'L - low'), ('M', 'M - medium'), ('H', 'H - high')] %}
+                    <option value="{{ t }}" {{ 'selected' if form.get('type') == t }}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+                {% if errors.type %}<div class="invalid-feedback">{{ errors.type }}</div>{% endif %}
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Sensor readings</legend>
+            <div class="row g-3">
+              {% for key, (label, unit, lo, hi) in FIELDS.items() %}
+              <div class="col-sm-6">
+                <label class="form-label" for="{{ key }}">{{ label }}</label>
+                <div class="input-unit">
+                  <input class="form-control num {{ 'is-invalid' if errors[key] }}" id="{{ key }}" name="{{ key }}" type="number" step="any"
+                         min="{{ lo }}" max="{{ hi }}" required inputmode="decimal" value="{{ form.get(key, '')|plain }}">
+                  <span class="unit">{{ unit }}</span>
+                </div>
+                {% if errors[key] %}<div class="invalid-feedback d-block">{{ errors[key] }}</div>{% endif %}
+                <div class="form-text">Training data: {{ ranges[key].min|num(1 if key in ('air_temp','process_temp','torque') else 0) }}-{{ ranges[key].max|num(1 if key in ('air_temp','process_temp','torque') else 0) }} {{ unit }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Model</legend>
+            <select class="form-select {{ 'is-invalid' if errors.model }}" id="model" name="model" aria-label="Model">
+              {% for key, label in model_labels.items() %}
+                <option value="{{ key }}" {{ 'selected' if form.get('model') == key }}>{{ label }}{{ ' (default)' if key == default_model }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.model %}<div class="invalid-feedback d-block">{{ errors.model }}</div>{% endif %}
+            <div class="form-text">The default has the best cross-validated PR-AUC. See Model Performance for the comparison.</div>
+          </fieldset>
+
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Run prediction</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('main.predict') }}">Clear</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ result ============ -->
+  <div class="col-xl-7" id="result">
+  {% if not result %}
+    <div class="panel">
+      <div class="panel-head"><h2>Result</h2></div>
+      <div class="panel-body">
+        <p class="muted mb-3">The result appears here after you run a prediction. Probabilities are calibrated, and are classified using the thresholds from the project proposal:</p>
+        <table class="table-app">
+          <thead><tr><th>Level</th><th>Failure probability</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>{{ badge('Normal') }}</td><td>0% to under 30%</td><td>{{ levels.Normal.action }}</td></tr>
+            <tr><td>{{ badge('Warning') }}</td><td>30% to under 70%</td><td>{{ levels.Warning.action }}</td></tr>
+            <tr><td>{{ badge('Critical') }}</td><td>70% to 100%</td><td>{{ levels.Critical.action }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    {% set p = result.probability %}
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Result for {{ row.machine_id }}</h2>
+        <span class="hint">{{ result.model_label }}, calibrated &middot; model version {{ result.model_version }}</span>
+      </div>
+      <div class="panel-body">
+        {% if stale %}<div class="notice notice-warning">This prediction was made with an older model version. The stored result is shown, and the explanation is not available.</div>{% endif %}
+        <div class="result-head">
+          <div>
+            <div class="label">Failure probability</div>
+            <div class="prob {{ result.risk_level|lower }}">{{ p|pct }}</div>
+          </div>
+          {{ badge(result.risk_level, true) }}
+        </div>
+
+        <div class="tbar" role="img" aria-label="Failure probability {{ p|pct }} on a scale from 0 to 100 percent, with Normal below 30, Warning 30 to 70 and Critical above 70">
+          <div class="tbar-track">
+            <span class="seg ok"></span><span class="seg warn"></span><span class="seg crit"></span>
+            <span class="tbar-marker" style="left: {{ [p * 100, 100]|min }}%"></span>
+          </div>
+          <div class="tbar-scale"><span style="left:0">0%</span><span style="left:30%">30%</span><span style="left:70%">70%</span><span style="left:100%">100%</span></div>
+        </div>
+
+        <p class="mb-2"><strong>{{ result.action }}.</strong> {{ result.guidance }}</p>
+        <p class="small-note mb-0">
+          Saved as prediction #{{ row.id }} &middot; <a href="{{ url_for('main.history', machine=row.machine_id) }}">history for this machine</a>
+          {% if result.risk_level != 'Normal' %}&middot; <a href="{{ url_for('main.alerts') }}">alert created ({{ row.alert_status }})</a>{% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% if result.conditions %}
+    <div class="panel">
+      <div class="panel-head"><h2>Conditions found in these readings</h2><span class="hint">rule check, not model output</span></div>
+      <div class="panel-body">
+        {% for c in result.conditions %}
+          <div class="cond">
+            <div><span class="code">{{ c.code }}</span><strong>{{ c.title }}</strong></div>
+            <div class="mt-1">{{ c.detail }} <strong>{{ c.action }}</strong></div>
+          </div>
+        {% endfor %}
+        <p class="small-note mt-3 mb-0">These checks use the failure conditions documented for the AI4I dataset. The prediction model only estimates overall failure risk and does not identify a failure type.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if result.effects %}
+    {% set mx = result.effects|map(attribute='effect')|map('abs')|max %}
+    {% set shown = {"Machine type": form.type, "Temperatures": (form.air_temp|num) ~ " / " ~ (form.process_temp|num) ~ " K",
+                    "Rotational speed": (form.rpm|num(0)) ~ " rpm", "Torque": (form.torque|num) ~ " Nm", "Tool wear": (form.tool_wear|num(0)) ~ " min"} %}
+    <div class="panel">
+      <div class="panel-head"><h2>How each reading affects this result</h2><span class="hint">change in probability if the reading were typical</span></div>
+      <div class="panel-body">
+        {% for e in result.effects %}
+          <div class="effect">
+            <div>{{ e.reading }}<div class="small-note">{{ shown[e.reading] }}</div></div>
+            <div class="effect-axis" title="Probability if this reading were typical: {{ e.p_if_typical|pct }}">
+              {% if mx > 0 %}<span class="effect-fill {{ 'up' if e.effect > 0 else 'down' }}" style="width: {{ (e.effect|abs / mx * 50)|round(1) }}%"></span>{% endif %}
+            </div>
+            <div class="num text-end">{{ '%+.1f'|format(e.effect * 100) }} pp</div>
+          </div>
+        {% endfor %}
+        <p class="small-note mt-3 mb-0">Each bar shows how many percentage points (pp) the failure probability would drop (left) or rise (right) if that reading were replaced by its typical training value. Readings interact (for example torque and speed set the power), so the effects need not add up.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="panel-head"><h2>Derived features used by the model</h2></div>
+      <div class="panel-body">
+        <dl class="meta">
+          <dt>Temperature difference</dt><dd>{{ result.derived.temp_diff|num(1) }} K (process - air)</dd>
+          <dt>Approximate power</dt><dd>{{ result.derived.power_w|num(0) }} W (torque x speed)</dd>
+          <dt>Tool wear x torque</dt><dd>{{ result.derived.strain|num(0) }} min&middot;Nm</dd>
+        </dl>
+      </div>
+    </div>
+  {% endif %}
+  </div>
+</div>
+<script type="application/json" id="page-data">{{ {"examples": examples}|tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/main.js') }}"></script>{% endblock %}

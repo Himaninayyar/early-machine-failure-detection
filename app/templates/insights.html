@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header with context %}
+{% block title %}Model Insights{% endblock %}
+{% set d = m.dataset %}
+{% set sel = m.selection %}
+{% set thr_names = [('0.3', '30% (Warning and above)'), ('0.5', '50%'), ('0.7', '70% (Critical)')] %}
+{% set strat = {'none': 'None', 'class_weight': 'Class weights', 'smote': 'SMOTENC'} %}
+{% block content %}
+{{ page_header("Model Insights", "How the prediction model was built and checked. Start with the short summary; the rest is detail.") }}
+
+{% if not m %}
+  <div class="notice notice-danger">No training results were found (models/metrics.json). Run <code>python -m ml.train</code>.</div>
+{% else %}
+<div class="panel">
+  <div class="panel-head"><h2>In plain words</h2></div>
+  <div class="panel-body">
+    <ul class="mb-0">
+      <li>The app uses <strong>{{ labels[sel.default_model] }}</strong>, picked after comparing {{ sel.table|length }} models on the training data.</li>
+      {% set t3 = m.test[sel.default_model].thresholds['0.3'] %}
+      <li>On {{ d.test_rows }} machines it had never seen, it caught <strong>{{ t3.tp }} of {{ t3.tp + t3.fn }}</strong> real failures and raised {{ t3.fp }} false alarm{{ '' if t3.fp == 1 else 's' }}.</li>
+      <li>It is good at overheating, power and overstrain failures. It is weak at tool-wear failures and cannot predict random ones.</li>
+      <li>The data is synthetic, so this does not show how it would do on real machines.</li>
+    </ul>
+  </div>
+</div>
+
+{% if m.preliminary %}<div class="notice notice-warning"><strong>Preliminary results.</strong> These came from the '{{ m.profile }}' training profile, not a full run. Do not quote them as final.</div>{% endif %}
+<div class="notice notice-info">
+  The held-out test set has {{ d.test_rows }} machines, of which {{ d.test_failures }} failed. A model that always predicts "no failure" would be
+  {{ '%.1f'|format(d.baseline_accuracy_if_always_no_failure * 100) }}% accurate, so accuracy is not used to choose between models. Recall (failures caught), precision (alerts that were real) and PR-AUC are.
+  With so few failures, small differences between models are within the uncertainty shown in brackets (95% bootstrap intervals).
+  The dataset is synthetic, so these figures do not show how the models would perform on real machines.
+</div>
+
+<!-- ============ which model and why ============ -->
+<div class="panel">
+  <div class="panel-head"><h2>Which model is used, and why</h2><span class="hint">decided from validation results on the training data only</span></div>
+  <div class="panel-body">
+    <p class="mb-2">The application uses <strong>{{ labels[sel.default_model] }}</strong> by default.
+      {{ sel.basis }}</p>
+    <div class="table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Model</th><th class="r">Validation PR-AUC</th><th class="r">Validation Brier</th><th class="r">Recall at 30%</th><th class="r">Precision at 30%</th><th></th></tr></thead>
+      <tbody>
+      {% for s in sel.table %}
+        <tr><td>{{ labels[s.model] }}</td><td class="r">{{ '%.3f'|format(s.cv_pr_auc) }}</td><td class="r">{{ '%.4f'|format(s.cv_brier) }}</td>
+            <td class="r">{{ '%.3f'|format(s['cv_recall_at_0.3']) }}</td><td class="r">{{ '%.3f'|format(s['cv_precision_at_0.3']) }}</td>
+            <td>{% if s.model == sel.default_model %}<span class="tag">selected</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="small-note mt-2 mb-0">Validation figures are out-of-fold predictions from 5-fold cross-validation on the training split, after calibration. Hyperparameters were tuned on the same split, so these figures are slightly optimistic for every model alike. The test set was not used to choose anything.</p>
+  </div>
+</div>
+
+<details class="fold">
+  <summary>How to read these metrics</summary>
+  <div class="fold-body">
+    <dl class="meta">
+      <dt>Recall</dt><dd>Of the machines that really failed, the share the model flagged. A missed failure means unplanned downtime, so recall is the metric to protect.</dd>
+      <dt>Precision</dt><dd>Of the machines flagged, the share that really failed. Low precision means false alarms and wasted inspections.</dd>
+      <dt>F1</dt><dd>The balance of precision and recall in one number.</dd>
+      <dt>PR-AUC</dt><dd>How well the model ranks failures above normal machines, focusing on the rare failure class. The main selection metric. A random model scores about {{ '%.3f'|format(d.test_failures / d.test_rows) }}.</dd>
+      <dt>ROC-AUC</dt><dd>Ranking quality over all thresholds. It looks flattering on imbalanced data, so read it together with PR-AUC.</dd>
+      <dt>Brier score</dt><dd>Average squared error of the predicted probabilities (lower is better). It checks that "70%" really means about 70%, which the alert thresholds rely on.</dd>
+    </dl>
+  </div>
+</details>
+
+<!-- ============ threshold-dependent metrics ============ -->
+<div class="panel">
+  <div class="panel-head">
+    <h2>Precision, recall and F1 on the test set</h2>
+    <div class="seg-toggle" role="group" aria-label="Probability threshold" id="thr-toggle">
+      {% for key, label in thr_names %}<button type="button" data-thr="{{ key }}" class="{{ 'active' if key == '0.3' }}">{{ label }}</button>{% endfor %}
+    </div>
+  </div>
+  <div class="panel-body flush table-wrap">
+    {% for key, label in thr_names %}
+    <div class="thr-block" data-thr="{{ key }}" {{ 'hidden' if key != '0.3' }}>
+      <table class="table-app">
+        <thead><tr><th>Model</th><th class="r">Precision</th><th class="r">Recall</th><th class="r">F1</th><th class="r">Accuracy</th><th class="r">Failures caught</th><th class="r">Missed</th><th class="r">False alarms</th></tr></thead>
+        <tbody>
+        {% for k in order %}{% set t = m.test[k] %}{% set x = t.thresholds[key] %}
+          <tr>
+            <td>{{ t.label }}{% if k == default %}<span class="tag">default</span>{% endif %}</td>
+            {% if key == '0.3' %}
+              <td class="r">{{ '%.3f'|format(x.precision) }} <span class="muted">({{ '%.2f-%.2f'|format(*t.ci95['precision_at_0.3']) }})</span></td>
+              <td class="r">{{ '%.3f'|format(x.recall) }} <span class="muted">({{ '%.2f-%.2f'|format(*t.ci95['recall_at_0.3']) }})</span></td>
+              <td class="r">{{ '%.3f'|format(x.f1) }} <span class="muted">({{ '%.2f-%.2f'|format(*t.ci95['f1_at_0.3']) }})</span></td>
+            {% else %}<td class="r">{{ '%.3f'|format(x.precision) }}</td><td class="r">{{ '%.3f'|format(x.recall) }}</td><td class="r">{{ '%.3f'|format(x.f1) }}</td>{% endif %}
+            <td class="r">{{ '%.1f'|format(x.accuracy * 100) }}%</td><td class="r">{{ x.tp }} of {{ x.tp + x.fn }}</td><td class="r">{{ x.fn }}</td><td class="r">{{ x.fp }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Ranking quality and probability calibration</h2><span class="hint">test set, independent of the threshold</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Model</th><th class="r">PR-AUC (95% CI)</th><th class="r">ROC-AUC (95% CI)</th><th class="r">Brier</th><th class="r">Brier before calibration</th><th>Calibration</th><th>Imbalance handling</th></tr></thead>
+      <tbody>
+      {% for k in order %}{% set t = m.test[k] %}
+        <tr><td>{{ t.label }}{% if k == default %}<span class="tag">default</span>{% endif %}</td>
+          <td class="r">{{ '%.3f'|format(t.pr_auc) }} <span class="muted">({{ '%.2f-%.2f'|format(*t.ci95.pr_auc) }})</span></td>
+          <td class="r">{{ '%.3f'|format(t.roc_auc) }} <span class="muted">({{ '%.3f-%.3f'|format(*t.ci95.roc_auc) }})</span></td>
+          <td class="r">{{ '%.4f'|format(t.brier) }}</td><td class="r">{{ '%.4f'|format(t.uncalibrated.brier) if t.uncalibrated else '-' }}</td>
+          <td>{{ t.calibration|capitalize if t.calibration else 'Members calibrated' }}</td><td>{{ strat[t.strategy] if t.strategy else 'As members' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ ensemble ============ -->
+{% set e = m.ensemble %}
+<div class="panel">
+  <div class="panel-head"><h2>Soft voting ensemble</h2><span class="hint">averages the calibrated probabilities of the three models</span></div>
+  <div class="panel-body">
+    <p>Deployed weights: {% for k, w in e.weights.items() %}{{ labels[k] }} {{ '%.2f'|format(w) }}{{ ', ' if not loop.last }}{% endfor %}.
+      {% if e.tuned_weights_adopted %}These weights were chosen on validation data.{% else %}Equal weights are used.{% endif %}</p>
+    <ul class="mb-3">
+      <li>Equal-weight ensemble, validation PR-AUC {{ '%.3f'|format(e.equal.oof_pr_auc) }}, Brier {{ '%.4f'|format(e.equal.oof_brier) }}.</li>
+      <li>Best weights found on validation data: {% for k, w in zip(e.members, e.best_on_oof.weights) %}{{ labels[k] }} {{ '%.1f'|format(w) }}{{ ', ' if not loop.last }}{% endfor %},
+        validation PR-AUC {{ '%.3f'|format(e.best_on_oof.oof_pr_auc) }} (gain {{ '%+.3f'|format(e.gain_on_oof) }}; split-half check {{ '%+.3f'|format(e.split_half_gain) }}).
+        {% if e.tuned_weights_degenerate %}<strong>These weights put almost all weight on one model, so that "ensemble" is just that model again. It was not adopted.</strong>{% endif %}</li>
+      {% set tv = e.tuned_variant_test %}
+      <li>For transparency, those tuned weights on the test set: PR-AUC {{ '%.3f'|format(tv.pr_auc) }}, recall at 30% {{ '%.3f'|format(tv['recall_at_0.3']) }}, precision at 30% {{ '%.3f'|format(tv['precision_at_0.3']) }}. They were not used for any choice.</li>
+    </ul>
+    <p class="mb-2"><strong>Finding.</strong> {% set ens_s = sel.table|selectattr('model', 'equalto', 'ens')|first %}{% set best_s = sel.table|selectattr('model', 'equalto', sel.default_model)|first %}
+      {% if ens_s.cv_pr_auc >= best_s.cv_pr_auc - 0.01 %}The ensemble is within 0.01 PR-AUC of the best single model on validation data.{% else %}The ensemble does not beat the best single model: its validation PR-AUC is {{ '%.3f'|format(ens_s.cv_pr_auc) }} against {{ '%.3f'|format(best_s.cv_pr_auc) }} for {{ labels[sel.default_model] }}. The weaker Logistic Regression pulls the average down, and the validation search found no blend that helps.{% endif %}</p>
+    <p class="small-note mb-0">{{ e.rule }}</p>
+  </div>
+</div>
+
+<!-- ============ charts ============ -->
+<div class="row g-3">
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Precision-recall curves</h2><span class="hint">higher and further right is better</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-pr" role="img" aria-label="Precision-recall curves"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>ROC curves</h2><span class="hint">dashed line = random guessing</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-roc" role="img" aria-label="ROC curves"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Model comparison</h2><span class="hint" id="bars-hint">threshold 30%</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-bars" role="img" aria-label="Precision, recall and F1 by model"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Calibration check</h2><span class="hint">points near the diagonal = trustworthy probabilities</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-cal" role="img" aria-label="Calibration check"></canvas></div></div></div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Confusion matrices</h2><span class="hint">follows the threshold selected above</span></div>
+  <div class="panel-body">
+    {% for key, label in thr_names %}
+    <div class="thr-block" data-thr="{{ key }}" {{ 'hidden' if key != '0.3' }}>
+      <div class="row g-4">
+        {% for k in order %}{% set x = m.test[k].thresholds[key] %}
+        <div class="col-md-6 col-xl-3">
+          <div class="fw-medium mb-2">{{ m.test[k].label }}</div>
+          <table class="matrix">
+            <tr><th></th><th>Predicted: no failure</th><th>Predicted: failure</th></tr>
+            <tr><th class="rowhead">Actual: no failure</th><td class="good"><span class="n">{{ x.tn }}</span><span class="t">correct</span></td><td><span class="n">{{ x.fp }}</span><span class="t">false alarms</span></td></tr>
+            <tr><th class="rowhead">Actual: failure</th><td class="miss"><span class="n">{{ x.fn }}</span><span class="t">missed</span></td><td class="good"><span class="n">{{ x.tp }}</span><span class="t">caught</span></td></tr>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ============ baselines ============ -->
+{% if m.baselines %}{% set bt = m.test[default].thresholds['0.3'] %}
+<div class="panel">
+  <div class="panel-head"><h2>Do the models beat simple baselines?</h2><span class="hint">test set, threshold 30% for the model</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Approach</th><th class="r">Precision</th><th class="r">Recall</th><th class="r">F1</th><th class="r">Accuracy</th></tr></thead>
+      <tbody>
+        <tr class="row-highlight"><td>{{ labels[default] }} (the model in use)</td><td class="r">{{ '%.3f'|format(bt.precision) }}</td><td class="r">{{ '%.3f'|format(bt.recall) }}</td><td class="r">{{ '%.3f'|format(bt.f1) }}</td><td class="r">{{ '%.3f'|format(bt.accuracy) }}</td></tr>
+        {% for key in ['never_fails', 'rule_based', 'rule_physical'] %}{% set b = m.baselines[key] %}{% if b %}
+        <tr><td class="wrap">{{ b.label }}<div class="small-note">{{ b.note }}</div></td><td class="r">{{ '%.3f'|format(b.precision) }}</td><td class="r">{{ '%.3f'|format(b.recall) }}</td><td class="r">{{ '%.3f'|format(b.f1) }}</td><td class="r">{{ '%.3f'|format(b.accuracy) }}</td></tr>
+        {% endif %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="small-note mb-0">Accuracy is misleading here: predicting "no failure" every time scores {{ '%.1f'|format(m.baselines.never_fails.accuracy * 100) }}% and finds nothing.
+    This dataset is synthetic and its failures are produced by fixed rules, so a rule-only baseline can match or beat a trained model. That says more about the dataset than about the models:
+    on real machines such rules are not known in advance. The models' advantages are a calibrated probability (not just yes/no) and a graded Normal / Warning / Critical status.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- ============ thresholds ============ -->
+{% set dt = m.test[default] %}
+<div class="panel">
+  <div class="panel-head"><h2>Are the 30% and 70% thresholds reasonable?</h2><span class="hint">evidence for {{ labels[default] }}</span></div>
+  <div class="panel-body">
+    <p class="small-note">The thresholds come from the project proposal. This table checks them against validation (out-of-fold) predictions on the training data, so nothing here is tuned on the test set.</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th class="r">Flag a machine when probability is at least</th><th class="r">Precision</th><th class="r">Recall</th><th class="r">F1</th><th class="r">Machines flagged</th></tr></thead>
+      <tbody>{% for r in m.thresholds_oof[default] %}<tr class="{{ 'row-highlight' if r.threshold in (0.3, 0.7) }}"><td class="r">{{ (r.threshold * 100)|round|int }}%</td><td class="r">{{ '%.3f'|format(r.precision) }}</td><td class="r">{{ '%.3f'|format(r.recall) }}</td><td class="r">{{ '%.3f'|format(r.f1) }}</td><td class="r">{{ r.flagged }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="small-note mt-2 mb-3">Lowering the threshold catches more failures at the cost of more false alarms; the table shows how steep that trade-off is. A low Warning threshold favours recall, which suits maintenance where a missed failure costs more than an extra inspection. Do the alert bands mean what they say? On the test set:</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th>Status</th><th class="r">Machines</th><th class="r">Actually failed</th><th class="r">Observed failure rate</th></tr></thead>
+      <tbody>{% for b in dt.bands %}<tr><td><span class="badge-risk {{ b.level|lower }}">{{ b.level }}</span></td><td class="r">{{ b.machines }}</td><td class="r">{{ b.failures }}</td><td class="r">{% if b.observed_failure_rate is none %}-{% else %}{{ '%.1f'|format(b.observed_failure_rate * 100) }}%{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="small-note mt-2 mb-0">Bands holding only a handful of machines (often Warning) give noisy rates. In this synthetic dataset failures are close to deterministic, so predictions cluster near 0% or 100% and few machines land in Warning.</p>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Which failures does {{ labels[default] }} miss?</h2><span class="hint">test set, threshold 30%</span></div>
+  <div class="panel-body">
+    {% set mm = dt['missed_at_0.3_by_mode'] %}
+    <p class="mb-2">It missed {{ mm.missed_total }} of {{ d.test_failures }} failures. By recorded failure mode: {% for c in ['TWF', 'HDF', 'PWF', 'OSF', 'RNF'] %}{{ c }} {{ mm[c] }}{{ ', ' if not loop.last }}{% endfor %}; no mode recorded {{ mm.no_mode_flag }}. (A failure can carry more than one mode.)</p>
+    <p class="small-note mb-0">Most misses are tool wear failures (TWF), which in this dataset happen only to some machines within a range of tool wear and cannot be told apart from healthy machines in that range using the sensor readings. This, not model quality, is the main reason recall levels off below 100%.</p>
+  </div>
+</div>
+
+<!-- ============ failure modes ============ -->
+<div class="panel">
+  <div class="panel-head"><h2>Failure-mode classifiers</h2><span class="hint">separate models, used for the "possible failure modes" table</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Mode</th><th class="r">Failures in training</th><th class="r">Failures in test</th><th class="r">Validation PR-AUC</th><th class="r">Test PR-AUC</th><th>Shown to users</th></tr></thead>
+      <tbody>
+      {% for code, f in m.failure_modes.items() %}
+        <tr><td><span class="code">{{ code }}</span> {{ risk.MODE_INFO[code].name }}</td><td class="r">{{ f.positives_train }}</td><td class="r">{{ f.positives_test }}</td>
+            <td class="r">{{ '%.3f'|format(f.oof_pr_auc) if f.oof_pr_auc is defined else '-' }}</td><td class="r">{{ '%.3f'|format(f.test_pr_auc) if f.test_pr_auc is not none and f.test_pr_auc is defined else '-' }}</td>
+            <td>{{ 'Yes' if code in meta.failure_modes_reliable else 'No (not reliable enough)' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body small-note">One Random Forest per mode (balanced class weights, sigmoid calibration). {{ meta.failure_modes_rule }} HDF, PWF and OSF are generated by fixed rules in this dataset, so near-perfect scores say little about real machines. TWF is only partly deterministic and its classifier is not reliable. {{ risk.RNF_NOTE }}</div>
+</div>
+
+
+<!-- ============ per-failure-type evaluation ============ -->
+{% set ev = m.evaluation %}
+{% if ev %}
+<div class="panel">
+  <div class="panel-head"><h2>Results for each failure type</h2><span class="hint">test set; each type has few failures, so read the counts</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Failure type</th><th class="r">Failures in test</th><th class="r">Caught by {{ labels[default] }} at 30%</th>
+        <th class="r">Type model precision</th><th class="r">Type model recall</th><th class="r">F1</th><th>Confusion (TP / FP / FN / TN)</th></tr></thead>
+      <tbody>
+      {% for code in ['HDF', 'PWF', 'OSF', 'TWF', 'RNF'] %}{% set o = ev.overall_by_type[code] %}{% set t = ev.per_type.get(code) %}
+        <tr><td><span class="code">{{ code }}</span> {{ risk.MODE_INFO[code].name if code in risk.MODE_INFO else 'Random failure' }}</td>
+          <td class="r">{{ o.failures }}</td>
+          <td class="r">{{ o.caught }} of {{ o.failures }}{% if o.recall is not none %} ({{ '%.0f'|format(o.recall * 100) }}%){% endif %}</td>
+          {% if t and t.available %}{% set x = t['test_at_0.5'] %}
+          <td class="r">{{ '%.3f'|format(x.precision) }}</td><td class="r">{{ '%.3f'|format(x.recall) }}</td><td class="r">{{ '%.3f'|format(x.f1) }}</td>
+          <td class="num">{{ x.tp }} / {{ x.fp }} / {{ x.fn }} / {{ x.tn }}</td>
+          {% else %}<td class="r muted" colspan="4">not modelled (random)</td>{% endif %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body small-note">"Caught" uses the overall model at the 30% Warning threshold: a failure of that type counts as caught if the machine was not rated Normal.
+    "Type model" columns are the separate failure-type classifiers at 50%. HDF, PWF and OSF follow fixed rules in this dataset, so near-perfect scores say little about real machines.
+    TWF is the weak spot: the type model finds none of the {{ ev.per_type.TWF.positives_test }} test failures and the overall model catches {{ ev.overall_by_type.TWF.caught }}.</div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Which failures were missed, and would the tool-wear notice help?</h2><span class="hint">{{ labels[ev.model] }}, threshold 30%, test set</span></div>
+  <div class="panel-body">
+    <p class="mb-2">{{ ev.missed.total }} of {{ ev.missed.failures }} failures were rated Normal. <strong>{{ ev.missed.with_tool_wear_notice }} of those {{ ev.missed.total }}</strong>
+      had tool wear of {{ ev.notice.limit_min }} min or more, so the maintenance notice would have flagged them.
+      Across the whole test set, {{ ev.notice.test_failures_with_notice }} of {{ ev.notice.test_failures }} failures occurred among the {{ ev.notice.test_machines_with_notice }} machines
+      with that notice ({{ ev.notice.failure_rate_with_notice_pct }}% failed, versus {{ ev.notice.failure_rate_without_notice_pct }}% of the rest).
+      The notice is a maintenance reminder, not a forecast: most machines that show it do not fail.</p>
+  </div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th class="r">Predicted</th><th>Type</th><th class="r">Air K</th><th class="r">Process K</th><th class="r">rpm</th><th class="r">Torque Nm</th><th class="r">Tool wear min</th><th>Recorded failure type</th><th>Tool-wear notice</th></tr></thead>
+      <tbody>
+      {% for r in ev.missed.rows %}
+        <tr><td class="r">{{ '%.1f'|format(r.probability * 100) }}%</td><td>{{ r.type }}</td><td class="r">{{ r.air_temp }}</td><td class="r">{{ r.process_temp }}</td><td class="r">{{ '%.0f'|format(r.rpm) }}</td>
+          <td class="r">{{ r.torque }}</td><td class="r">{{ '%.0f'|format(r.tool_wear) }}</td><td>{{ r.modes|join(', ') or 'none recorded' }}</td><td>{{ 'Yes' if r.notice else 'No' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6"><div class="panel"><div class="panel-head"><h2>Precision-recall by failure type</h2><span class="hint">cross-validation, training data</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-pr-types-cv" role="img" aria-label="Precision-recall curves by failure type, cross-validation"></canvas></div></div></div></div>
+  <div class="col-lg-6"><div class="panel"><div class="panel-head"><h2>Precision-recall by failure type</h2><span class="hint">test set</span></div>
+    <div class="panel-body"><div class="chart-box tall"><canvas id="chart-pr-types-test" role="img" aria-label="Precision-recall curves by failure type, test set"></canvas></div></div></div></div>
+</div>
+
+<details class="fold">
+  <summary>Choosing a threshold for each failure type (validation data, not the test set)</summary>
+  <div class="fold-body">
+    <p class="small-note">Out-of-fold predictions on the training split. Use this table, not the test set, to decide whether a threshold should change. The global 30% / 70% thresholds are unchanged.</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th>Type</th><th class="r">Threshold</th><th class="r">Precision</th><th class="r">Recall</th><th class="r">F1</th><th class="r">Caught</th><th class="r">False alarms</th><th class="r">Missed</th></tr></thead>
+      <tbody>{% for code in ['HDF', 'PWF', 'OSF', 'TWF'] %}{% set t = ev.per_type.get(code) %}{% if t and t.available %}{% for x in t.cv_thresholds %}
+        <tr><td>{% if loop.first %}<span class="code">{{ code }}</span>{% endif %}</td><td class="r">{{ '%.0f'|format(x.threshold * 100) }}%</td><td class="r">{{ '%.3f'|format(x.precision) }}</td>
+          <td class="r">{{ '%.3f'|format(x.recall) }}</td><td class="r">{{ '%.3f'|format(x.f1) }}</td><td class="r">{{ x.tp }}</td><td class="r">{{ x.fp }}</td><td class="r">{{ x.fn }}</td></tr>
+      {% endfor %}{% endif %}{% endfor %}</tbody>
+    </table></div>
+  </div>
+</details>
+{% endif %}
+
+<!-- ============ tool-wear study ============ -->
+{% if twf %}
+<div class="panel">
+  <div class="panel-head"><h2>Tool-wear failures: what can and cannot be predicted</h2><span class="hint">training data only; the test set was not used</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Tool wear (min)</th><th class="r">Machines</th><th class="r">Tool-wear failures</th><th class="r">Rate (95% interval)</th><th class="r">Any failure</th></tr></thead>
+      <tbody>{% for b in twf.bands %}<tr><td>{{ b.band }}</td><td class="r">{{ b.machines }}</td><td class="r">{{ b.twf }}</td>
+        <td class="r">{{ b.twf_rate_pct }}% ({{ b.twf_ci95_pct[0] }}-{{ b.twf_ci95_pct[1] }}%)</td><td class="r">{{ b.any_failure_rate_pct }}%</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="mb-2">Almost every tool-wear failure happens at 200 min or more, but even then only about 1 tool in 20 fails from wear, and the rate rises slowly with wear. That is why the
+      readings cannot say <em>which</em> worn tool will fail.</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th>Estimate of tool-wear failure</th><th class="r">PR-AUC (mean, spread)</th><th class="r">ROC-AUC</th></tr></thead>
+      <tbody>{% for c in twf.candidates %}<tr><td class="wrap">{{ c.description }}</td><td class="r">{{ '%.3f'|format(c.pr_auc_mean) }} &plusmn; {{ '%.3f'|format(c.pr_auc_sd) }}</td><td class="r">{{ '%.3f'|format(c.roc_auc_mean) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="small-note mt-2 mb-0">5-fold cross-validation repeated 5 times on the training split ({{ twf.twf_in_training }} tool-wear failures); a model with no information scores {{ '%.3f'|format(twf.chance_pr_auc) }}.
+      {{ twf.verdict }} {{ twf.conclusion }}</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- ============ explainability ============ -->
+<div class="panel">
+  <div class="panel-head">
+    <h2>Which readings matter overall</h2>
+    <div class="seg-toggle" role="group" aria-label="Model" id="imp-toggle">
+      {% for k in order %}{% if m.test[k].importance.native or k == 'ens' %}<button type="button" data-model="{{ k }}" class="{{ 'active' if k == default }}">{{ m.test[k].label }}</button>{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="fw-medium">Permutation importance (the five sensor inputs)</div>
+        <div class="small-note mb-2">Drop in test PR-AUC when one input is shuffled. Air and process temperature both feed the temperature difference, so each carries that feature's weight too.</div>
+        <div class="chart-box"><canvas id="chart-imp-perm" role="img" aria-label="Permutation importance"></canvas></div>
+      </div>
+      <div class="col-lg-6">
+        <div class="fw-medium" id="native-title">The model's own importance (engineered features)</div>
+        <div class="small-note mb-2" id="native-kind"></div>
+        <div class="chart-box"><canvas id="chart-imp-native" role="img" aria-label="Model's own feature importance"></canvas></div>
+      </div>
+    </div>
+    <p class="small-note mt-3 mb-0">Explanations for a single analysis (on the result page) use exact Shapley values over five sensor groups. They show how the model responds, not what physically causes a failure. The ensemble has no importance of its own, so its second chart shows the default model.</p>
+  </div>
+</div>
+
+<!-- ============ methodology ============ -->
+<h2 class="section-title">How the models were built</h2>
+<details class="fold"><summary>Procedure and reproducibility</summary>
+  <div class="fold-body">
+    <p>The data was split once into {{ d.train_rows }} training and {{ d.test_rows }} test machines (stratified: {{ d.train_failures }} and {{ d.test_failures }} failures). Every choice (features, imbalance handling, hyperparameters, calibration, ensemble weights, default model) used 5-fold cross-validation on the training machines only. The test set was used once, to report the figures above. Later sections (baselines, results for each failure type, missed failures) read it afterwards for description only; no model or threshold was changed because of them. Threshold and tool-wear comparisons use cross-validation on the training machines. Any future change should be judged the same way (see <code>ml/twf_study.py</code>), with the test set looked at once at the end. Scaling, resampling and encoding are fitted inside each training fold.</p>
+    <p>Data quality checks before training: {{ m.data_quality.rows }} rows; missing values {{ m.data_quality.missing_values }}; duplicate rows {{ m.data_quality.duplicate_rows }}; invalid machine types {{ m.data_quality.invalid_type }}; process temperature not above air temperature {{ m.data_quality.process_not_above_air }}.</p>
+    <dl class="meta">
+      <dt>Model version</dt><dd>{{ meta.version }} (profile: {{ meta.profile }}), trained {{ meta.trained_at }}</dd>
+      <dt>Random seed</dt><dd>{{ meta.seed }}</dd>
+      <dt>Libraries</dt><dd>{% for k, v in meta.libraries.items() %}{{ k }} {{ v }}{{ ', ' if not loop.last }}{% endfor %}</dd>
+      <dt>Data checksum</dt><dd class="num">{{ meta.data_sha256[:16] }}...</dd>
+    </dl>
+  </div>
+</details>
+<details class="fold"><summary>Features and class imbalance (cross-validation on training data)</summary>
+  <div class="fold-body">
+    <p class="small-note">Mean over folds (with standard deviation). The wear x torque feature (tool wear times torque, a load proxy, not physical strain) changed mean PR-AUC by {{ '%+.3f'|format(m.feature_engineering.mean_pr_auc_gain_from_wear_torque) }}{% if m.feature_engineering.use_wear_torque %}, above the 0.01 threshold set beforehand, so it is included{% else %}, so it is not used{% endif %}. SMOTENC resamples with the machine type as one categorical column and one-hot encodes it afterwards, so synthetic samples always have a valid type.</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th>Model</th><th>Features</th><th>Imbalance handling</th><th class="r">PR-AUC</th><th class="r">ROC-AUC</th><th class="r">Best F1</th></tr></thead>
+      <tbody>{% for r in m.ablation|sort(attribute='model') %}<tr><td>{{ labels[r.model] }}</td><td>{{ 'With wear x torque' if r.use_wear_torque else 'Standard' }}</td><td>{{ strat[r.strategy] }}</td>
+        <td class="r">{{ '%.3f'|format(r.ap) }} &plusmn; {{ '%.3f'|format(r.ap_std) }}</td><td class="r">{{ '%.3f'|format(r.roc) }}</td><td class="r">{{ '%.3f'|format(r.best_f1) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</details>
+<details class="fold"><summary>Hyperparameter tuning</summary>
+  <div class="fold-body table-wrap"><table class="table-app">
+    <thead><tr><th>Model</th><th>Imbalance handling</th><th class="r">Settings tried</th><th class="r">Best CV PR-AUC</th><th>Chosen settings</th></tr></thead>
+    <tbody>{% for k, t in m.tuning.items() %}<tr><td>{{ labels[k] }}</td><td>{{ strat[t.strategy] }}</td><td class="r">{{ t.n_iter }}</td><td class="r">{{ '%.4f'|format(t.best_cv_pr_auc) }}</td>
+      <td class="wrap">{% for name, v in t.best_params.items() %}{{ name }} = {{ v }}{{ ', ' if not loop.last }}{% endfor %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</details>
+<details class="fold"><summary>Probability calibration</summary>
+  <div class="fold-body">
+    <p class="small-note">Out-of-fold results on training data. Of the two calibration methods, the one with the lower Brier score was kept.</p>
+    <div class="table-wrap"><table class="table-app">
+      <thead><tr><th>Model</th><th>Calibration</th><th class="r">PR-AUC</th><th class="r">Brier</th><th class="r">Log loss</th></tr></thead>
+      <tbody>{% for k, c in m.calibration.items() %}{% for o in c.options %}<tr><td>{% if loop.first %}{{ labels[k] }}{% endif %}</td>
+        <td>{{ o.method|capitalize if o.method != 'none' else 'None (raw)' }}{% if o.method == c.chosen %}<span class="tag">used</span>{% endif %}</td>
+        <td class="r">{{ '%.3f'|format(o.pr_auc) }}</td><td class="r">{{ '%.4f'|format(o.brier) }}</td><td class="r">{{ '%.4f'|format(o.log_loss) }}</td></tr>{% endfor %}{% endfor %}</tbody>
+    </table></div>
+  </div>
+</details>
+<details class="fold"><summary>Health score</summary>
+  <div class="fold-body"><p class="mb-1">{{ health_formula }}</p><p class="small-note mb-0">{{ health_note }}</p></div>
+</details>
+
+<h2 class="section-title">Loaded models</h2>
+<div class="panel"><div class="panel-body flush table-wrap">
+  <table class="table-app">
+    <thead><tr><th>Model</th><th>Status</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for k, s in status.models.items() %}<tr><td>{{ s.label }}</td><td>{{ 'Available' if s.available else 'Unavailable' }}</td><td class="wrap">{{ s.error or '' }}</td></tr>{% endfor %}
+    <tr><td>Failure-mode classifiers</td><td>{{ 'Available' if status.failure_modes.available else 'Unavailable' }}</td><td class="wrap">{{ status.failure_modes.error or '' }}</td></tr>
+    </tbody>
+  </table>
+</div></div>
+{% for p in status.problems %}<div class="notice notice-warning">{{ p }}</div>{% endfor %}
+{% for p in status.version_warnings %}<div class="notice notice-warning">{{ p }}</div>{% endfor %}
+
+<script type="application/json" id="page-data">{{ {"test": m.test, "order": order, "labels": labels, "default": default, "baseline_rate": d.test_failures / d.test_rows,
+  "type_curves": type_curves}|tojson }}</script>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if m %}<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script><script src="{{ url_for('static', filename='js/charts.js') }}"></script>{% endif %}{% endblock %}

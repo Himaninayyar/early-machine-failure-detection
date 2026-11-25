@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health, csrf with context %}
+{% block title %}Batch analysis{% endblock %}
+{% block content %}
+{% call page_header("Batch analysis", "Analyze many machines at once from a CSV or Excel file.") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.analyze') }}">Analyze one machine</a>
+{% endcall %}
+{% if error %}<div class="notice notice-danger" role="alert">{{ error }}</div>{% endif %}
+
+{% if not summary %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <form class="panel" method="post" action="{{ url_for('main.batch') }}" enctype="multipart/form-data" id="batch-form">
+      {{ csrf() }}
+      <div class="panel-head"><h2>Upload a CSV or Excel file</h2></div>
+      <div class="panel-body">
+        <label class="form-label" for="file">CSV or Excel (.xlsx) file</label>
+        <input class="form-control" type="file" id="file" name="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        <div class="form-text">Up to {{ config.BATCH_MAX_ROWS }} rows and {{ (config.MAX_CONTENT_LENGTH / 1000000)|round(1) }} MB. Each row is one reading of one machine.</div>
+        <button class="btn btn-primary mt-3" type="submit" id="submit-btn" {{ 'disabled' if not registry.ready }}>Analyze file</button>
+        <span class="muted small-note ms-2" id="busy-note" hidden>Analyzing...</span>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel">
+      <div class="panel-head"><h2>File format</h2></div>
+      <div class="panel-body">
+        <p>The first row must be a header with these columns (any order):</p>
+        <p><code>machine_id, type, air_temp, process_temp, rpm, torque, tool_wear</code></p>
+        <ul class="small-note">
+          <li>Units: temperatures in kelvin, speed in rpm, torque in Nm, tool wear in minutes.</li>
+          <li>Rows are analysed in file order with the default model ({{ default_model_label }}).</li>
+          <li>Valid rows are saved to the history and update alerts. Invalid rows are listed below the result and are not saved.</li>
+          <li>A machine keeps one type. A row whose type differs from the machine's is rejected.</li>
+        </ul>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.batch_template') }}">Download a template</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+  <div class="kpi-strip four">
+    <div class="kpi"><div class="label">Rows read</div><div class="value">{{ summary.rows }}</div></div>
+    <div class="kpi"><div class="label">Saved</div><div class="value">{{ summary.saved|length }}</div><div class="sub">{{ summary.model }}</div></div>
+    <div class="kpi"><div class="label">Need attention</div><div class="value {{ 'crit' if summary.counts.Critical else ('warn' if summary.counts.Warning else 'ok') }}">{{ summary.counts.Warning + summary.counts.Critical }}</div>
+      <div class="sub">{{ summary.counts.Critical }} critical, {{ summary.counts.Warning }} warning</div></div>
+    <div class="kpi"><div class="label">Rejected</div><div class="value {{ 'warn' if summary.rejected }}">{{ summary.rejected|length }}</div><div class="sub">not saved</div></div>
+  </div>
+
+  {% if summary.maintenance_count %}
+  <div class="notice notice-warning"><strong>{{ summary.maintenance_count }} machine{{ '' if summary.maintenance_count == 1 else 's' }} with high tool wear (200 min or more).</strong>
+    They are marked "Tool wear" in the results below. This is a maintenance notice: it does not change the status or create an alert.</div>
+  {% endif %}
+
+  {% if summary.rejected %}
+  <div class="panel">
+    <div class="panel-head"><h2>Rejected rows</h2><span class="hint">fix these and upload them again</span></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table-app">
+        <thead><tr><th>Line</th><th>Machine</th><th>Problem</th></tr></thead>
+        <tbody>{% for r in summary.rejected %}<tr><td class="num">{{ r.line }}</td><td>{{ r.machine_id or '-' }}</td><td class="wrap">{% for f, msg in r.errors.items() %}{{ msg }}{{ ' ' if not loop.last }}{% endfor %}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if summary.saved %}
+  <div class="panel">
+    <div class="panel-head"><h2>Results</h2><a class="hint" href="{{ url_for('main.history') }}">Open history</a></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table-app">
+        <thead><tr><th>Line</th><th>Machine</th><th class="r">Failure probability</th><th>Status</th><th>Health</th><th>Alert</th><th>Maintenance</th><th>Result</th></tr></thead>
+        <tbody>
+        {% for s in summary.saved %}
+          <tr><td class="num">{{ s.line }}</td><td><a href="{{ url_for('main.machine_detail', code=s.machine_id) }}">{{ s.machine_id }}</a></td>
+              <td class="r">{{ s.probability|pct }}</td><td>{{ badge(s.risk_level) }}</td><td>{{ health(s.health_score) }}</td>
+              <td>{{ {'opened': 'Opened', 'repeat': 'Updated', 'escalated': 'Escalated', 'downgraded': 'Updated', 'auto_resolved': 'Resolved', 'none': '-'}[s.alert] }}</td>
+              <td>{% if s.maintenance %}<span class="tag">Tool wear</span>{% else %}-{% endif %}</td>
+              <td><a href="{{ url_for('main.result', pid=s.prediction_id) }}">View</a></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.batch') }}">Upload another file</a>
+  <p class="small-note mt-3">Batch analyses are not given per-reading explanations (to keep large files fast). Analyze a single machine to see them.</p>
+{% endif %}
+{% endblock %}

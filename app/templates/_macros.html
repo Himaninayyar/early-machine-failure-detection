@@ -1,0 +1,39 @@
+{% macro page_header(title, subtitle="") %}
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+  </div>
+  {% if caller %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro badge(level, large=false) %}<span class="badge-risk {{ level|lower }}{{ ' lg' if large }}">{{ level }}</span>{% endmacro %}
+
+{# Health score 0-100 with a small bar; colour follows the risk bands (health <= 30 is Critical, <= 70 is Warning) #}
+{% macro health(score, number=true) %}
+{% set cls = 'critical' if score <= 30 else ('warning' if score <= 70 else 'normal') %}
+<span class="health" title="Health score {{ score }} out of 100"><span class="health-bar"><i class="{{ cls }}" style="width: {{ score }}%"></i></span>{% if number %}<span class="num">{{ score }}</span>{% endif %}</span>
+{% endmacro %}
+
+{% macro alert_status(status) %}<span class="status-chip {{ status }}">{{ status|capitalize }}</span>{% endmacro %}
+
+{# Sortable table header: toggles direction when the active column is clicked again #}
+{% macro sort_th(label, col, sort, direction, right=false) %}
+<th{% if right %} class="r"{% endif %} aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == col else 'none' }}">
+  <a href="{{ url_with(sort=col, dir=('asc' if (sort == col and direction == 'desc') else 'desc'), page=None) }}">{{ label }}{% if sort == col %} {{ '&#9650;'|safe if direction == 'asc' else '&#9660;'|safe }}{% endif %}</a>
+</th>
+{% endmacro %}
+
+{% macro pager(page, pages, total, per_page, noun="records") %}
+<div class="pager">
+  <span>{% if total %}Showing {{ (page - 1) * per_page + 1 }}-{{ [page * per_page, total]|min }} of {{ total }} {{ noun }}{% else %}0 {{ noun }}{% endif %}</span>
+  <span class="d-flex align-items-center gap-2">
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page > 1 %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_with(page=page - 1) }}">Previous</a>{% endif %}
+    {% if page < pages %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_with(page=page + 1) }}">Next</a>{% endif %}
+  </span>
+</div>
+{% endmacro %}
+
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}

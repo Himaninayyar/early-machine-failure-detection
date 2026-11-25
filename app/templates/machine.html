@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, health, alert_status with context %}
+{% block title %}{{ m.machine_code }}{% endblock %}
+{% block content %}
+{% call page_header("Machine " ~ m.machine_code, "Type " ~ m.machine_type ~ ". First analysed " ~ m.created_at ~ ".") %}
+  <a class="btn btn-primary" href="{{ url_for('main.analyze', machine=m.machine_code) }}">Analyze again</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.history', machine=m.machine_code) }}">Full history</a>
+{% endcall %}
+
+<div class="kpi-strip four">
+  <div class="kpi"><div class="label">Current status</div><div class="mt-1">{{ badge(m.risk_level, true) }}</div><div class="sub mt-1">{{ m.last_analysed }}</div></div>
+  <div class="kpi"><div class="label">Failure probability</div><div class="value">{{ m.probability|pct }}</div><div class="sub">latest analysis</div></div>
+  <div class="kpi"><div class="label">Health score</div><div class="value">{{ m.health_score }}<small class="muted">/100</small></div></div>
+  <div class="kpi"><div class="label">Analyses</div><div class="value">{{ m.n_predictions }}</div>
+    <div class="sub">{% if alert %}<a href="{{ url_for('main.alert_detail', alert_id=alert.id) }}">alert #{{ alert.id }} {{ alert.status }}</a>{% else %}no active alert{% endif %}</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Risk trend</h2><span class="hint">failure probability of each analysis, oldest to newest. Dashed lines mark the 30% and 70% thresholds.</span></div>
+  <div class="panel-body">
+    {% if trend|length >= 2 %}<div class="chart-box"><canvas id="chart-trend" role="img" aria-label="Failure probability over this machine's analyses"></canvas></div>
+    {% else %}<span class="muted">A trend appears after the machine has been analysed at least twice.</span>{% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Recent analyses</h2><a class="hint" href="{{ url_for('main.history', machine=m.machine_code) }}">View all {{ m.n_predictions }}</a></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Time</th><th class="r">Failure probability</th><th>Status</th><th>Health</th><th>Model</th><th>Recommendation</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr><td class="num"><a href="{{ url_for('main.result', pid=r.id) }}">{{ r.created_at }}</a></td><td class="r">{{ r.probability|pct }}</td><td>{{ badge(r.risk_level) }}</td>
+            <td>{{ health(r.health_score) }}</td><td>{{ r.model_label }}</td><td class="wrap">{{ r.recommendation }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script type="application/json" id="page-data">{{ {"trend": trend}|tojson }}</script>
+{% endblock %}
+{% block scripts %}{% if trend|length >= 2 %}<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script><script src="{{ url_for('static', filename='js/charts.js') }}"></script>{% endif %}{% endblock %}

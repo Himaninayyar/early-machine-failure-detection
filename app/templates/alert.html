@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, alert_status, csrf with context %}
+{% block title %}Alert #{{ a.id }}{% endblock %}
+{% block content %}
+{% call page_header("Alert #" ~ a.id, "Machine " ~ a.machine_code ~ ". Opened " ~ a.opened_at ~ ".") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.alerts') }}">All alerts</a>
+  <a class="btn btn-outline-secondary" href="{{ url_for('main.machine_detail', code=a.machine_code) }}">View machine</a>
+{% endcall %}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="panel-head"><h2>Alert details</h2>{{ alert_status(a.status) }}</div>
+      <div class="panel-body">
+        <dl class="meta">
+          <dt>Severity now</dt><dd>{{ badge(a.current_level) }}</dd>
+          <dt>Highest severity</dt><dd>{{ badge(a.peak_level) }}</dd>
+          <dt>Reason</dt><dd>{{ a.reason }}</dd>
+          <dt>Recommended action</dt><dd>{{ a.recommendation }}</dd>
+          <dt>Latest reading</dt><dd>{{ a.latest_probability|pct }} at {{ a.latest_at }} (<a href="{{ url_for('main.result', pid=a.latest_prediction_id) }}">view analysis</a>)</dd>
+          <dt>First reading</dt><dd><a href="{{ url_for('main.result', pid=a.opening_prediction_id) }}">view analysis</a></dd>
+          <dt>Readings in this alert</dt><dd>{{ a.occurrences }}</dd>
+          {% if a.acknowledged_at %}<dt>Acknowledged</dt><dd>{{ a.acknowledged_at }}</dd>{% endif %}
+          {% if a.resolved_at %}<dt>Resolved</dt><dd>{{ a.resolved_at }} ({{ 'a later reading was Normal' if a.resolution == 'auto_normal_reading' else 'resolved manually' }})</dd>{% endif %}
+        </dl>
+      </div>
+    </div>
+    {% if a.status != 'resolved' %}
+    <div class="panel">
+      <div class="panel-head"><h2>Actions</h2></div>
+      <div class="panel-body">
+        <form method="post" id="alert-action-form">
+          {{ csrf() }}
+          <label class="form-label" for="note">Note (optional)</label>
+          <input class="form-control mb-3" id="note" name="note" maxlength="300" placeholder="e.g. Cooling fan replaced">
+          <div class="d-flex gap-2">
+            {% if a.status == 'open' %}<button class="btn btn-primary" type="submit" formaction="{{ url_for('main.alert_acknowledge', alert_id=a.id) }}">Acknowledge</button>{% endif %}
+            <button class="btn btn-outline-secondary" type="submit" formaction="{{ url_for('main.alert_resolve', alert_id=a.id) }}">Resolve</button>
+          </div>
+          <p class="small-note mt-2 mb-0">Acknowledge: someone is dealing with it. Resolve: the problem is handled. If the machine's severity rises later, an acknowledged alert is re-opened automatically.</p>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-5">
+    <div class="panel">
+      <div class="panel-head"><h2>Alert history</h2><span class="hint">never edited or deleted</span></div>
+      <div class="panel-body">
+        <ol class="timeline">
+          {% for e in events %}
+            <li><div class="num small-note">{{ e.created_at }}</div>
+              <div><strong>{{ {'opened': 'Opened', 'repeat': 'Another reading', 'escalated': 'Escalated', 'downgraded': 'Severity fell', 'acknowledged': 'Acknowledged', 'resolved': 'Resolved', 'auto_resolved': 'Resolved automatically'}[e.event_type] }}</strong>
+                {% if e.probability is not none %} <span class="muted">({{ e.probability|pct }})</span>{% endif %}</div>
+              {% if e.note %}<div class="small-note">{{ e.note }}</div>{% endif %}
+              {% if e.prediction_id %}<div class="small-note"><a href="{{ url_for('main.result', pid=e.prediction_id) }}">analysis #{{ e.prediction_id }}</a></div>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

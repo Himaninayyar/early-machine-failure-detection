@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, badge, pager, alert_status, csrf with context %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+{{ page_header("Alerts", "A machine gets one alert while it is at Warning or Critical. Repeated readings update that alert. A later Normal reading resolves it.") }}
+
+<div class="kpi-strip four">
+  <div class="kpi"><div class="label">Open critical</div><div class="value crit">{{ counts.open_critical }}</div><div class="sub">immediate maintenance</div></div>
+  <div class="kpi"><div class="label">Open warning</div><div class="value warn">{{ counts.open_warning }}</div><div class="sub">schedule inspection</div></div>
+  <div class="kpi"><div class="label">Acknowledged</div><div class="value">{{ counts.acknowledged }}</div><div class="sub">being handled</div></div>
+  <div class="kpi"><div class="label">Resolved</div><div class="value">{{ counts.resolved }}</div><div class="sub">history kept</div></div>
+</div>
+
+<div class="mb-3">
+  <div class="seg-toggle" role="group" aria-label="Alert view">
+    {% for key, label in [('active', 'Active'), ('resolved', 'Resolved'), ('all', 'All')] %}
+      <a href="{{ url_for('main.alerts', view=key) }}" class="{{ 'active' if view == key }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  {% if not total %}
+    <div class="empty-state">
+      <h2>{{ 'No active alerts' if view == 'active' else 'Nothing here' }}</h2>
+      <p>{% if counts.open + counts.acknowledged + counts.resolved == 0 %}An alert is raised when an analysis is classified as Warning or Critical.{% elif view == 'active' %}Every machine is currently Normal or its alerts are resolved.{% else %}No alerts match this view.{% endif %}</p>
+    </div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="table-app">
+      <thead><tr><th>Severity</th><th>Machine</th><th>Reason and recommended action</th><th class="r">Readings</th><th>Opened</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for a in rows %}
+        <tr>
+          <td>{{ badge(a.current_level) }}{% if a.peak_level != a.current_level %}<div class="small-note">peak {{ a.peak_level }}</div>{% endif %}</td>
+          <td><a href="{{ url_for('main.machine_detail', code=a.machine_code) }}">{{ a.machine_code }}</a></td>
+          <td class="wrap"><a href="{{ url_for('main.alert_detail', alert_id=a.id) }}">{{ a.reason }}</a><div class="small-note">{{ a.recommendation }}</div></td>
+          <td class="r">{{ a.occurrences }}</td><td class="num">{{ a.opened_at }}</td><td>{{ alert_status(a.status) }}</td>
+          <td class="text-end action-cell">
+            {% if a.status != 'resolved' %}
+            <form method="post" action="{{ url_for('main.alert_acknowledge', alert_id=a.id) }}" class="d-inline">{{ csrf() }}<input type="hidden" name="next" value="/alerts?view={{ view }}">
+              {% if a.status == 'open' %}<button class="btn btn-outline-secondary btn-sm" type="submit">Acknowledge</button>{% endif %}</form>
+            <form method="post" action="{{ url_for('main.alert_resolve', alert_id=a.id) }}" class="d-inline">{{ csrf() }}<input type="hidden" name="next" value="/alerts?view={{ view }}"><button class="btn btn-outline-secondary btn-sm" type="submit">Resolve</button></form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pager(page, pages, total, per_page, "alerts") }}
+  {% endif %}
+</div>
+<p class="small-note">Critical alerts are listed first. Severity follows the proposal: Warning is 30-70% failure probability, Critical is 70% or more. Acknowledge means someone is dealing with it. Resolve closes it. A new alert opens only if the machine reaches Warning or Critical again.</p>
+{% endblock %}

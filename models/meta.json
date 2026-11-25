@@ -1,0 +1,360 @@
+{
+ "version": "20261117-0629",
+ "profile": "full",
+ "default_model": "rf",
+ "ranking": [
+  "rf",
+  "ens",
+  "xgb",
+  "lr"
+ ],
+ "seed": 42,
+ "use_wear_torque": true,
+ "model_names": {
+  "lr": "Logistic Regression",
+  "rf": "Random Forest",
+  "xgb": "XGBoost",
+  "ens": "Soft Voting Ensemble"
+ },
+ "input_columns": [
+  "type",
+  "air_temp",
+  "process_temp",
+  "rpm",
+  "torque",
+  "tool_wear"
+ ],
+ "ranges": {
+  "air_temp": {
+   "min": 295.3,
+   "max": 304.5,
+   "median": 300.1
+  },
+  "process_temp": {
+   "min": 305.7,
+   "max": 313.8,
+   "median": 310.1
+  },
+  "rpm": {
+   "min": 1168.0,
+   "max": 2886.0,
+   "median": 1503.0
+  },
+  "torque": {
+   "min": 3.8,
+   "max": 76.6,
+   "median": 40.1
+  },
+  "tool_wear": {
+   "min": 0.0,
+   "max": 253.0,
+   "median": 107.0
+  }
+ },
+ "type_counts": {
+  "L": 4830,
+  "M": 2381,
+  "H": 789
+ },
+ "thresholds": {
+  "warning": 0.3,
+  "critical": 0.7
+ },
+ "ensemble": {
+  "members": [
+   "lr",
+   "rf",
+   "xgb"
+  ],
+  "weights": {
+   "lr": 0.3333,
+   "rf": 0.3333,
+   "xgb": 0.3333
+  }
+ },
+ "artifacts": {
+  "lr": {
+   "file": "lr.joblib",
+   "sha256": "9574f60a9a0e6397142c1b9fa959ed597ecbd869b272bc1e55fa34269294c58b",
+   "bytes": 4433
+  },
+  "rf": {
+   "file": "rf.joblib",
+   "sha256": "eb0f103b0d55ca329211c8e78b593c66e7be731f1e33bbd0bd17e38346cd2c77",
+   "bytes": 2661725
+  },
+  "xgb": {
+   "file": "xgb.joblib",
+   "sha256": "c73bccfdbe7225eb85856fe695b0413bae09cfd0e2c428beecdb44d596fb5fd4",
+   "bytes": 455451
+  },
+  "modes": {
+   "file": "modes.joblib",
+   "sha256": "39b4033e75f8e3feb3d358a2a56e7181a62a88871cf2787c35f8b8d3de772a16",
+   "bytes": 6897665
+  }
+ },
+ "background": [
+  {
+   "type": "M",
+   "air_temp": 301.8,
+   "process_temp": 309.8,
+   "rpm": 1546,
+   "torque": 39.8,
+   "tool_wear": 121
+  },
+  {
+   "type": "L",
+   "air_temp": 303.4,
+   "process_temp": 312.3,
+   "rpm": 1663,
+   "torque": 33.9,
+   "tool_wear": 78
+  },
+  {
+   "type": "L",
+   "air_temp": 298.4,
+   "process_temp": 309.5,
+   "rpm": 1692,
+   "torque": 28.3,
+   "tool_wear": 136
+  },
+  {
+   "type": "L",
+   "air_temp": 301.8,
+   "process_temp": 310.6,
+   "rpm": 1650,
+   "torque": 31.9,
+   "tool_wear": 126
+  },
+  {
+   "type": "M",
+   "air_temp": 297.5,
+   "process_temp": 309.4,
+   "rpm": 1482,
+   "torque": 39.3,
+   "tool_wear": 112
+  },
+  {
+   "type": "L",
+   "air_temp": 298.7,
+   "process_temp": 310.2,
+   "rpm": 1363,
+   "torque": 45.5,
+   "tool_wear": 28
+  },
+  {
+   "type": "M",
+   "air_temp": 296.5,
+   "process_temp": 307.4,
+   "rpm": 1565,
+   "torque": 43.5,
+   "tool_wear": 194
+  },
+  {
+   "type": "L",
+   "air_temp": 299.6,
+   "process_temp": 309.1,
+   "rpm": 1641,
+   "torque": 35.8,
+   "tool_wear": 81
+  },
+  {
+   "type": "L",
+   "air_temp": 302.2,
+   "process_temp": 311.5,
+   "rpm": 1744,
+   "torque": 31.2,
+   "tool_wear": 172
+  },
+  {
+   "type": "L",
+   "air_temp": 302.8,
+   "process_temp": 312.1,
+   "rpm": 1418,
+   "torque": 51.4,
+   "tool_wear": 54
+  },
+  {
+   "type": "L",
+   "air_temp": 300.0,
+   "process_temp": 311.1,
+   "rpm": 1425,
+   "torque": 47.8,
+   "tool_wear": 179
+  },
+  {
+   "type": "L",
+   "air_temp": 300.2,
+   "process_temp": 309.5,
+   "rpm": 1436,
+   "torque": 48.8,
+   "tool_wear": 135
+  },
+  {
+   "type": "L",
+   "air_temp": 301.4,
+   "process_temp": 310.9,
+   "rpm": 1414,
+   "torque": 38.8,
+   "tool_wear": 162
+  },
+  {
+   "type": "L",
+   "air_temp": 301.2,
+   "process_temp": 310.0,
+   "rpm": 1618,
+   "torque": 37.6,
+   "tool_wear": 32
+  },
+  {
+   "type": "L",
+   "air_temp": 298.6,
+   "process_temp": 308.2,
+   "rpm": 1705,
+   "torque": 26.3,
+   "tool_wear": 177
+  },
+  {
+   "type": "L",
+   "air_temp": 302.8,
+   "process_temp": 312.3,
+   "rpm": 1366,
+   "torque": 49.1,
+   "tool_wear": 221
+  },
+  {
+   "type": "L",
+   "air_temp": 298.2,
+   "process_temp": 309.3,
+   "rpm": 1355,
+   "torque": 43.8,
+   "tool_wear": 142
+  },
+  {
+   "type": "M",
+   "air_temp": 300.6,
+   "process_temp": 309.5,
+   "rpm": 1492,
+   "torque": 34.0,
+   "tool_wear": 144
+  },
+  {
+   "type": "L",
+   "air_temp": 298.0,
+   "process_temp": 307.8,
+   "rpm": 1266,
+   "torque": 60.5,
+   "tool_wear": 81
+  },
+  {
+   "type": "M",
+   "air_temp": 297.1,
+   "process_temp": 308.5,
+   "rpm": 1515,
+   "torque": 42.1,
+   "tool_wear": 81
+  },
+  {
+   "type": "L",
+   "air_temp": 299.1,
+   "process_temp": 308.8,
+   "rpm": 1329,
+   "torque": 53.6,
+   "tool_wear": 207
+  },
+  {
+   "type": "H",
+   "air_temp": 296.9,
+   "process_temp": 307.5,
+   "rpm": 1397,
+   "torque": 48.3,
+   "tool_wear": 22
+  },
+  {
+   "type": "M",
+   "air_temp": 300.1,
+   "process_temp": 309.6,
+   "rpm": 1501,
+   "torque": 38.0,
+   "tool_wear": 157
+  },
+  {
+   "type": "M",
+   "air_temp": 298.0,
+   "process_temp": 307.9,
+   "rpm": 1750,
+   "torque": 26.6,
+   "tool_wear": 67
+  },
+  {
+   "type": "H",
+   "air_temp": 303.9,
+   "process_temp": 313.0,
+   "rpm": 1517,
+   "torque": 36.0,
+   "tool_wear": 142
+  },
+  {
+   "type": "M",
+   "air_temp": 297.3,
+   "process_temp": 308.8,
+   "rpm": 1469,
+   "torque": 44.1,
+   "tool_wear": 150
+  },
+  {
+   "type": "L",
+   "air_temp": 298.4,
+   "process_temp": 309.3,
+   "rpm": 1542,
+   "torque": 35.4,
+   "tool_wear": 208
+  },
+  {
+   "type": "H",
+   "air_temp": 298.9,
+   "process_temp": 308.5,
+   "rpm": 1415,
+   "torque": 54.0,
+   "tool_wear": 6
+  },
+  {
+   "type": "H",
+   "air_temp": 298.1,
+   "process_temp": 309.9,
+   "rpm": 1686,
+   "torque": 29.1,
+   "tool_wear": 60
+  },
+  {
+   "type": "L",
+   "air_temp": 299.1,
+   "process_temp": 308.2,
+   "rpm": 1493,
+   "torque": 34.9,
+   "tool_wear": 119
+  }
+ ],
+ "failure_modes": [
+  "TWF",
+  "HDF",
+  "PWF",
+  "OSF"
+ ],
+ "failure_modes_reliable": [
+  "HDF",
+  "PWF",
+  "OSF"
+ ],
+ "failure_modes_rule": "A failure-mode estimate is shown to users only if its cross-validated PR-AUC on the training split is >= 0.5.",
+ "data_sha256": "dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e",
+ "trained_at": "2026-11-17T06:29:58",
+ "libraries": {
+  "python": "3.12.3",
+  "scikit-learn": "1.9.1",
+  "xgboost": "3.4.1",
+  "imbalanced-learn": "0.14.2",
+  "numpy": "2.5.4"
+ }
+}
